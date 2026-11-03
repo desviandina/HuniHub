@@ -69,7 +69,7 @@ export default function RentalHistoryScreen({ navigation }) {
         <View style={styles.infoRow}>
           <MaterialCommunityIcons name="calendar-range" size={15} color="#64748B" />
           <Text style={styles.infoText}>
-            Mulai {formatDate(item.startDate)} • Durasi {item.durationDays} bulan
+            {item.endDate ? `${formatDate(item.startDate)} s/d ${formatDate(item.endDate)}` : `Mulai ${formatDate(item.startDate)} • Durasi ${item.durationDays} bulan`}
           </Text>
         </View>
 

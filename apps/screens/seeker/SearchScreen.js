@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useRef } from 'react';
 import {
   FlatList,
   View,
@@ -25,6 +25,7 @@ import { LISTING_TYPES } from '../../constants/listing';
 export default function SearchScreen({ navigation, route }) {
   const theme = useTheme();
   const [keyword, setKeyword] = useState(route.params?.keyword || '');
+  const [debouncedKeyword, setDebouncedKeyword] = useState(route.params?.keyword || '');
   const [type, setType] = useState(route.params?.type || '');
   const [maxPrice, setMaxPrice] = useState('');
   const [sortBy, setSortBy] = useState('');
@@ -33,13 +34,21 @@ export default function SearchScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Debounce search keyword input to avoid lag and frequent re-renders while typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedKeyword(keyword);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [keyword]);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const data = await searchListings({
         type,
-        city: keyword,
+        city: debouncedKeyword,
         maxPrice,
         sortBy,
       });
@@ -50,7 +59,7 @@ export default function SearchScreen({ navigation, route }) {
     } finally {
       setLoading(false);
     }
-  }, [keyword, type, maxPrice, sortBy]);
+  }, [debouncedKeyword, type, maxPrice, sortBy]);
 
   useEffect(() => {
     load();
@@ -63,7 +72,7 @@ export default function SearchScreen({ navigation, route }) {
     [navigation]
   );
 
-  const keyExtractor = useCallback((item) => item.id, []);
+  const keyExtractor = useCallback((item) => String(item.id), []);
 
   const renderItem = useCallback(
     ({ item }) => (
@@ -84,7 +93,7 @@ export default function SearchScreen({ navigation, route }) {
       <View style={styles.topBar}>
         <View style={styles.searchRow}>
           <TextInput
-            placeholder="Cari lokasi, kota, atau nama hunian..."
+            placeholder="Cari nama hunian, dekat UTU, Meulaboh, dsb..."
             value={keyword}
             onChangeText={setKeyword}
             mode="outlined"
@@ -166,6 +175,7 @@ export default function SearchScreen({ navigation, route }) {
               {[
                 { value: '', label: 'Default' },
                 { value: 'priceAsc', label: 'Termurah' },
+                { value: 'priceDesc', label: 'Termahal' },
                 { value: 'rating', label: 'Rating' },
               ].map((opt) => (
                 <Pressable
@@ -203,32 +213,27 @@ export default function SearchScreen({ navigation, route }) {
 
       {error ? <HelperText type="error">{error}</HelperText> : null}
 
-      {/* Results Header */}
-      {!loading && (
-        <View style={styles.resultCountRow}>
-          <Text style={styles.resultCountText}>
-            Ditemukan <Text style={{ fontWeight: '700', color: '#0D9488' }}>{listings.length}</Text> hunian
-          </Text>
-        </View>
-      )}
+      {/* Results Header with Subtle Loading Indicator */}
+      <View style={styles.resultCountRow}>
+        <Text style={styles.resultCountText}>
+          Ditemukan <Text style={{ fontWeight: '700', color: '#0D9488' }}>{listings.length}</Text> hunian
+        </Text>
+        {loading && <ActivityIndicator size="small" color="#0D9488" style={{ marginLeft: 8 }} />}
+      </View>
 
-      {loading ? (
-        <View style={styles.loadingArea}>
-          <ActivityIndicator size="large" color="#0D9488" />
-          <Text style={{ marginTop: 12, color: '#64748B' }}>Mencari hunian...</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={listings}
-          keyExtractor={keyExtractor}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-          initialNumToRender={4}
-          maxToRenderPerBatch={4}
-          windowSize={5}
-          removeClippedSubviews={Platform.OS === 'android'}
-          ListEmptyComponent={
+      {/* Persistent FlatList - Never unmounts on keystrokes */}
+      <FlatList
+        data={listings}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === 'android'}
+        ListEmptyComponent={
+          !loading ? (
             <EmptyState
               icon="map-search-outline"
               title="Hunian tidak ditemukan"
@@ -236,14 +241,15 @@ export default function SearchScreen({ navigation, route }) {
               actionLabel="Reset Pencarian"
               onAction={() => {
                 setKeyword('');
+                setDebouncedKeyword('');
                 setType('');
                 setMaxPrice('');
                 setSortBy('');
               }}
             />
-          }
-        />
-      )}
+          ) : null
+        }
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -358,17 +364,14 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   resultCountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 10,
   },
   resultCountText: {
     fontSize: 13,
     color: '#64748B',
-  },
-  loadingArea: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   list: {
     paddingHorizontal: 16,

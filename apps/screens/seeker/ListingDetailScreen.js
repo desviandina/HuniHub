@@ -7,6 +7,8 @@ import {
   Dimensions,
   Image,
   Platform,
+  Linking,
+  Pressable,
 } from 'react-native';
 import {
   Text,
@@ -16,16 +18,31 @@ import {
   useTheme,
   ActivityIndicator,
   Avatar,
+  Portal,
+  Dialog,
+  TextInput,
+  Snackbar,
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getListingById } from '../../services/listingService';
-import { getReviewsForListing } from '../../services/reviewService';
+import { getListingById, updateListingRating } from '../../services/listingService';
+import { getReviewsForListing, addReview } from '../../services/reviewService';
+import { haversineDistanceKm } from '../../services/locationService';
 import { formatRupiah, formatDistance, formatDate } from '../../utils/formatters';
 import { LISTING_TYPES } from '../../constants/listing';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../constants/roles';
 
 const { width } = Dimensions.get('window');
+
+// Top landmarks in Aceh Barat / Meulaboh
+const KEY_DESTINATIONS = [
+  { id: 'utu', name: 'Kampus UTU', desc: 'Universitas Teuku Umar', lat: 4.1352, lng: 96.1687, icon: 'school' },
+  { id: 'masjid', name: 'Masjid Baitul Makmur', desc: 'Pusat Kota Meulaboh', lat: 4.1458, lng: 96.1285, icon: 'mosque' },
+  { id: 'rsud', name: 'RSUD Cut Nyak Dhien', desc: 'Fasilitas Kesehatan Utama', lat: 4.1495, lng: 96.1340, icon: 'hospital-building' },
+  { id: 'pantai', name: 'Pantai Ujong Karang', desc: 'Wisata Sunset & Ikan Bakar', lat: 4.1294, lng: 96.1158, icon: 'waves' },
+  { id: 'stain', name: 'STAIN Meulaboh', desc: 'Kawasan Kampus Meureubo', lat: 4.1310, lng: 96.1620, icon: 'school' },
+  { id: 'pasar', name: 'Pasar Bina Usaha', desc: 'Pusat Pasar Meulaboh', lat: 4.1420, lng: 96.1270, icon: 'store' },
+];
 
 function getFacilityIcon(name = '') {
   const lower = name.toLowerCase();
@@ -35,8 +52,11 @@ function getFacilityIcon(name = '') {
   if (lower.includes('dapur')) return 'silverware-fork-knife';
   if (lower.includes('kamar mandi') || lower.includes('shower')) return 'shower';
   if (lower.includes('laundry')) return 'washing-machine';
-  if (lower.includes('sarapan')) return 'coffee';
+  if (lower.includes('sarapan') || lower.includes('kopi')) return 'coffee';
   if (lower.includes('listrik') || lower.includes('air')) return 'flash-outline';
+  if (lower.includes('tv')) return 'television';
+  if (lower.includes('kasur') || lower.includes('springbed')) return 'bed';
+  if (lower.includes('meja')) return 'desk';
   return 'check-circle-outline';
 }
 
@@ -49,10 +69,24 @@ export default function ListingDetailScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
+  // Destination & Distance State
+  const [selectedDest, setSelectedDest] = useState(KEY_DESTINATIONS[0]);
+  const [selectedNearbyId, setSelectedNearbyId] = useState(null);
+
+  // Review Dialog State
+  const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [snackbar, setSnackbar] = useState('');
+
   const load = useCallback(async () => {
     try {
       const data = await getListingById(listingId);
       setListing(data);
+      if (data?.nearbyPlaces && data.nearbyPlaces.length > 0) {
+        setSelectedNearbyId(data.nearbyPlaces[0].id);
+      }
       const dataReviews = await getReviewsForListing(listingId);
       setReviews(dataReviews);
     } finally {
@@ -64,11 +98,47 @@ export default function ListingDetailScreen({ route, navigation }) {
     load();
   }, [load]);
 
+  const handleOpenGoogleMaps = () => {
+    if (!listing) return;
+    const lat = listing.lat || 4.1440;
+    const lng = listing.lng || 96.1280;
+    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    Linking.openURL(url).catch(() => {
+      setSnackbar('Tidak dapat membuka Google Maps di perangkat ini.');
+    });
+  };
+
+  const handleSubmitReview = async () => {
+    if (!reviewComment.trim()) {
+      setSnackbar('Tuliskan sedikit komentar ulasan Anda.');
+      return;
+    }
+    setSubmittingReview(true);
+    try {
+      await addReview({
+        listingId,
+        reviewerId: user?.uid || 'u1',
+        reviewerName: user?.name || 'Alya Putri',
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+      await updateListingRating(listingId, reviewRating);
+      setShowReviewDialog(false);
+      setReviewComment('');
+      setSnackbar('Ulasan Anda berhasil dikirim! Terima kasih.');
+      await load();
+    } catch (err) {
+      setSnackbar('Gagal mengirim ulasan. Silakan coba lagi.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color="#0D9488" />
-        <Text style={{ marginTop: 12, color: '#64748B' }}>Memuat detail hunian...</Text>
+        <Text style={{ marginTop: 12, color: '#64748B' }}>Memuat detail hunian Aceh Barat...</Text>
       </View>
     );
   }
@@ -87,6 +157,14 @@ export default function ListingDetailScreen({ route, navigation }) {
   const typeLabel =
     LISTING_TYPES.find((item) => item.value === listing.type)?.label || listing.type;
   const images = listing.images?.length ? listing.images : [];
+
+  // Calculate dynamic distance to selected destination
+  const calculatedDistance =
+    listing.lat && listing.lng && selectedDest
+      ? haversineDistanceKm(listing.lat, listing.lng, selectedDest.lat, selectedDest.lng)
+      : listing.distanceKm;
+
+  const nearbyPlaces = listing.nearbyPlaces || [];
 
   return (
     <View style={styles.root}>
@@ -147,11 +225,11 @@ export default function ListingDetailScreen({ route, navigation }) {
               </View>
             ) : null}
 
-            {listing.distanceKm !== undefined && (
+            {calculatedDistance !== null && calculatedDistance !== undefined && (
               <View style={styles.distanceBadge}>
                 <MaterialCommunityIcons name="map-marker-distance" size={14} color="#0D9488" />
                 <Text style={styles.distanceText}>
-                  {formatDistance(listing.distanceKm)} dari tujuan
+                  {formatDistance(calculatedDistance)} dari {selectedDest?.name || 'Pusat Meulaboh'}
                 </Text>
               </View>
             )}
@@ -159,12 +237,110 @@ export default function ListingDetailScreen({ route, navigation }) {
 
           <Divider style={styles.divider} />
 
-          {/* Location Details */}
-          <Text style={styles.sectionTitle}>Lokasi</Text>
+          {/* Section: Lokasi Aceh Barat & Peta */}
+          <Text style={styles.sectionTitle}>Lokasi di Aceh Barat</Text>
           <View style={styles.locationCard}>
-            <MaterialCommunityIcons name="map-marker" size={20} color="#0D9488" />
-            <Text style={styles.locationText}>{listing.location}</Text>
+            <MaterialCommunityIcons name="map-marker" size={22} color="#0D9488" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.locationText}>{listing.location}</Text>
+              <Text style={styles.coordsText}>
+                Koordinat Meulaboh: {listing.lat?.toFixed(4) || '4.1440'}, {listing.lng?.toFixed(4) || '96.1280'}
+              </Text>
+            </View>
+            <Button
+              mode="contained-tonal"
+              buttonColor="#CCFBF1"
+              textColor="#0F766E"
+              icon="google-maps"
+              onPress={handleOpenGoogleMaps}
+              style={{ borderRadius: 10 }}
+              labelStyle={{ fontSize: 12, fontWeight: '700' }}
+            >
+              Buka Maps
+            </Button>
           </View>
+
+          {/* SECTION: Tempat Terdekat Manual dari Pemilik Hunian */}
+          {nearbyPlaces.length > 0 && (
+            <View style={styles.nearbyOwnerSection}>
+              <View style={styles.nearbyHeaderRow}>
+                <Text style={styles.sectionTitle}>Tempat Terdekat dari Hunian</Text>
+                <View style={styles.verifiedBadge}>
+                  <MaterialCommunityIcons name="check-decagram" size={12} color="#0D9488" />
+                  <Text style={styles.verifiedBadgeText}>Info Pemilik</Text>
+                </View>
+              </View>
+              <Text style={styles.destSubHeading}>Akses kampus, fasilitas & jalan utama terdekat:</Text>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.destScrollRow}
+              >
+                {nearbyPlaces.map((place) => {
+                  const isSelected = selectedNearbyId === place.id;
+                  return (
+                    <Pressable
+                      key={place.id}
+                      onPress={() => setSelectedNearbyId(place.id)}
+                      style={[styles.destCard, isSelected && styles.destCardActive]}
+                    >
+                      <MaterialCommunityIcons
+                        name={place.icon || 'map-marker'}
+                        size={20}
+                        color={isSelected ? '#0D9488' : '#64748B'}
+                      />
+                      <Text style={[styles.destName, isSelected && styles.destNameActive]}>
+                        {place.name}
+                      </Text>
+                      <Text style={[styles.destDist, isSelected && styles.destDistActive]}>
+                        {place.distance}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          )}
+
+          {/* SECTION: Kalkulator Jarak ke Landmark Populer Aceh Barat */}
+          <Text style={[styles.destSubHeading, { marginTop: 14 }]}>
+            Hitung Jarak ke Landmark Aceh Barat Lainnya:
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.destScrollRow}
+          >
+            {KEY_DESTINATIONS.map((dest) => {
+              const isSelected = selectedDest?.id === dest.id;
+              const dist =
+                listing.lat && listing.lng
+                  ? haversineDistanceKm(listing.lat, listing.lng, dest.lat, dest.lng)
+                  : null;
+              return (
+                <Pressable
+                  key={dest.id}
+                  onPress={() => setSelectedDest(dest)}
+                  style={[styles.destCard, isSelected && styles.destCardActive]}
+                >
+                  <MaterialCommunityIcons
+                    name={dest.icon}
+                    size={18}
+                    color={isSelected ? '#0D9488' : '#64748B'}
+                  />
+                  <Text style={[styles.destName, isSelected && styles.destNameActive]}>
+                    {dest.name}
+                  </Text>
+                  {dist !== null && (
+                    <Text style={[styles.destDist, isSelected && styles.destDistActive]}>
+                      {formatDistance(dist)}
+                    </Text>
+                  )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
           <Divider style={styles.divider} />
 
@@ -203,23 +379,43 @@ export default function ListingDetailScreen({ route, navigation }) {
               labelStyle={{ color: '#FFFFFF', fontWeight: '700' }}
             />
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={styles.ownerName}>{listing.ownerName || 'Pemilik Hunian'}</Text>
+              <Text style={styles.ownerName}>{listing.ownerName || 'Pak Rudi'}</Text>
               <Text style={styles.ownerVerified}>
-                <MaterialCommunityIcons name="check-decagram" size={14} color="#0D9488" /> Pemilik Terverifikasi
+                <MaterialCommunityIcons name="check-decagram" size={14} color="#0D9488" /> Mitra Pemilik HuniHub Aceh Barat
               </Text>
             </View>
           </View>
 
           <Divider style={styles.divider} />
 
-          {/* Rating & Reviews */}
+          {/* Rating & Reviews Section */}
           <View style={styles.reviewHeaderRow}>
-            <Text style={styles.sectionTitle}>Rating & Ulasan</Text>
-            <Text style={styles.reviewCountText}>{reviews.length} Ulasan</Text>
+            <View>
+              <Text style={styles.sectionTitle}>Rating & Ulasan</Text>
+              <Text style={styles.reviewCountText}>{reviews.length} Ulasan Terverifikasi</Text>
+            </View>
+
+            {user?.role === ROLES.SEEKER && (
+              <Button
+                mode="contained"
+                buttonColor="#0D9488"
+                textColor="#FFFFFF"
+                icon="star-plus-outline"
+                onPress={() => setShowReviewDialog(true)}
+                style={{ borderRadius: 10 }}
+                labelStyle={{ fontSize: 12, fontWeight: '700' }}
+              >
+                Beri Ulasan
+              </Button>
+            )}
           </View>
 
           {reviews.length === 0 ? (
-            <Text style={styles.emptyReviewText}>Belum ada ulasan untuk hunian ini.</Text>
+            <View style={styles.emptyReviewBox}>
+              <MaterialCommunityIcons name="comment-text-multiple-outline" size={32} color="#CBD5E1" />
+              <Text style={styles.emptyReviewText}>Belum ada ulasan untuk hunian ini.</Text>
+              <Text style={styles.emptyReviewSubtext}>Jadilah yang pertama memberikan penilaian pengalaman menginap!</Text>
+            </View>
           ) : (
             reviews.map((rv) => (
               <Card key={rv.id} mode="outlined" style={styles.reviewCard}>
@@ -269,12 +465,86 @@ export default function ListingDetailScreen({ route, navigation }) {
           >
             Ajukan Sewa
           </Button>
+        ) : user?.role === ROLES.OWNER ? (
+          <Button
+            mode="outlined"
+            style={styles.bookButton}
+            textColor="#0D9488"
+            labelStyle={styles.bookButtonLabel}
+            onPress={() => navigation.navigate('AddEditListing', { listingId })}
+          >
+            Edit Hunian
+          </Button>
         ) : (
           <View style={styles.unavailableBadge}>
             <Text style={styles.unavailableText}>Tidak Tersedia</Text>
           </View>
         )}
       </View>
+
+      {/* Dialog Beri Ulasan & Rating */}
+      <Portal>
+        <Dialog
+          visible={showReviewDialog}
+          onDismiss={() => setShowReviewDialog(false)}
+          style={styles.reviewDialog}
+        >
+          <Dialog.Title style={styles.dialogTitle}>Beri Ulasan & Rating</Dialog.Title>
+          <Dialog.Content>
+            <Text style={styles.dialogSub}>Bagaimana kenyamanan menginap di {listing.title}?</Text>
+
+            {/* Interactive 5-Star Selector */}
+            <View style={styles.interactiveStarRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <Pressable
+                  key={star}
+                  onPress={() => setReviewRating(star)}
+                  style={styles.starTouchArea}
+                >
+                  <MaterialCommunityIcons
+                    name={star <= reviewRating ? 'star' : 'star-outline'}
+                    size={36}
+                    color={star <= reviewRating ? '#F59E0B' : '#CBD5E1'}
+                  />
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.ratingLabelText}>{reviewRating} dari 5 Bintang</Text>
+
+            <TextInput
+              label="Tulis komentar ulasan Anda..."
+              placeholder="Ceritakan kebersihan, fasilitas, dan kenyamanan di Aceh Barat..."
+              value={reviewComment}
+              onChangeText={setReviewComment}
+              mode="outlined"
+              outlineColor="#E2E8F0"
+              activeOutlineColor="#0D9488"
+              multiline
+              numberOfLines={3}
+              style={{ marginTop: 12, backgroundColor: '#FFFFFF' }}
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowReviewDialog(false)} textColor="#64748B">
+              Batal
+            </Button>
+            <Button
+              mode="contained"
+              buttonColor="#0D9488"
+              textColor="#FFFFFF"
+              loading={submittingReview}
+              onPress={handleSubmitReview}
+              style={{ borderRadius: 10, paddingHorizontal: 12 }}
+            >
+              Kirim Ulasan
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <Snackbar visible={Boolean(snackbar)} onDismiss={() => setSnackbar('')}>
+        {snackbar}
+      </Snackbar>
     </View>
   );
 }
@@ -292,7 +562,7 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   scrollContent: {
-    paddingBottom: 110, // give space for sticky bottom bar
+    paddingBottom: 110,
   },
   galleryContainer: {
     position: 'relative',
@@ -397,7 +667,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#0F172A',
+    marginBottom: 8,
+  },
+  nearbyOwnerSection: {
     marginBottom: 10,
+  },
+  nearbyHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  verifiedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  verifiedBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0F766E',
   },
   locationCard: {
     flexDirection: 'row',
@@ -407,13 +702,64 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#E2E8F0',
-    gap: 8,
+    gap: 10,
+    marginBottom: 12,
   },
   locationText: {
     fontSize: 14,
     color: '#334155',
-    flex: 1,
     lineHeight: 20,
+    fontWeight: '600',
+  },
+  coordsText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 2,
+  },
+  destSubHeading: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+    marginBottom: 8,
+    letterSpacing: 0.3,
+  },
+  destScrollRow: {
+    gap: 8,
+    paddingBottom: 4,
+  },
+  destCard: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    minWidth: 100,
+  },
+  destCardActive: {
+    backgroundColor: '#F0FDFA',
+    borderColor: '#0D9488',
+  },
+  destName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  destNameActive: {
+    color: '#0D9488',
+    fontWeight: '800',
+  },
+  destDist: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 3,
+  },
+  destDistActive: {
+    color: '#0F766E',
   },
   facilityGrid: {
     flexDirection: 'row',
@@ -465,17 +811,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
   reviewCountText: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#64748B',
-    fontWeight: '600',
+    fontWeight: '500',
+    marginTop: -6,
+  },
+  emptyReviewBox: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   emptyReviewText: {
-    fontSize: 13,
+    fontSize: 14,
+    color: '#64748B',
+    fontWeight: '600',
+    marginTop: 8,
+  },
+  emptyReviewSubtext: {
+    fontSize: 12,
     color: '#94A3B8',
-    fontStyle: 'italic',
+    marginTop: 2,
+    textAlign: 'center',
+    paddingHorizontal: 20,
   },
   reviewCard: {
     marginBottom: 10,
@@ -523,7 +886,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#94A3B8',
   },
-  // Sticky Bottom Bar
   stickyBottomBar: {
     position: 'absolute',
     bottom: 0,
@@ -589,5 +951,35 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748B',
     fontWeight: '600',
+  },
+  reviewDialog: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+  },
+  dialogTitle: {
+    color: '#0F172A',
+    fontWeight: '800',
+    fontSize: 18,
+  },
+  dialogSub: {
+    color: '#64748B',
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  interactiveStarRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginVertical: 6,
+  },
+  starTouchArea: {
+    padding: 4,
+  },
+  ratingLabelText: {
+    textAlign: 'center',
+    color: '#D97706',
+    fontWeight: '700',
+    fontSize: 14,
+    marginTop: 4,
   },
 });

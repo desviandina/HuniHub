@@ -1,7 +1,18 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getFirestore, collection, getDocs, getDoc, doc, setDoc, updateDoc, query, where } from 'firebase/firestore';
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  getDoc,
+  doc,
+  setDoc,
+  updateDoc,
+  query,
+  where,
+} from 'firebase/firestore';
 import { app, FIREBASE_ENABLED } from '../config/firebase';
 import { RENTAL_STATUS } from '../constants/listing';
+import { pushNotification } from './notificationService';
 
 export const REQUESTS_KEY = 'hunihub_requests';
 const REQUESTS_COLLECTION = 'rentalRequests';
@@ -19,7 +30,16 @@ async function persistMockRequests(requests) {
   await AsyncStorage.setItem(REQUESTS_KEY, JSON.stringify(requests));
 }
 
-export async function createRentalRequest({ listingId, seekerId, ownerId, listingTitle, startDate, durationDays, totalPrice }) {
+export async function createRentalRequest({
+  listingId,
+  seekerId,
+  ownerId,
+  listingTitle,
+  startDate,
+  endDate,
+  durationDays,
+  totalPrice,
+}) {
   const request = {
     id: FIREBASE_ENABLED ? null : generateMockRequestId(),
     listingId,
@@ -27,23 +47,48 @@ export async function createRentalRequest({ listingId, seekerId, ownerId, listin
     ownerId,
     listingTitle,
     startDate,
+    endDate,
     durationDays,
     totalPrice,
     status: RENTAL_STATUS.PENDING,
     createdAt: new Date().toISOString(),
   };
+
   if (FIREBASE_ENABLED) {
     try {
       const db = getFirestore(app);
       const created = await setDoc(doc(collection(db, REQUESTS_COLLECTION)), request);
-      return { ...request, id: created.id };
+      request.id = created.id;
     } catch (err) {
       console.warn('Gagal menyimpan permintaan sewa ke Firestore, disimpan ke lokal:', err.message);
     }
   }
+
   const requests = await getMockRequests();
   requests.unshift(request);
   await persistMockRequests(requests);
+
+  // Send transactional notifications to both owner and seeker
+  try {
+    // Notification to owner
+    await pushNotification({
+      userId: ownerId,
+      title: 'Permintaan Sewa Baru 📋',
+      body: `Ada pengajuan sewa baru untuk "${listingTitle}". Segera periksa di tab Permintaan.`,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Confirmation notification to seeker
+    await pushNotification({
+      userId: seekerId,
+      title: 'Pengajuan Sewa Terkirim 🚀',
+      body: `Permintaan sewa untuk "${listingTitle}" berhasil dikirim. Menunggu konfirmasi pemilik hunian.`,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (notifErr) {
+    console.warn('Gagal mengirim notifikasi otomatis sewa:', notifErr);
+  }
+
   return request;
 }
 
@@ -88,14 +133,44 @@ export async function updateRequestStatus(id, status) {
     try {
       const db = getFirestore(app);
       await updateDoc(doc(db, REQUESTS_COLLECTION, id), { status });
-      return { id, status };
     } catch (err) {
       console.warn('Gagal update status permintaan di Firestore, update ke lokal:', err.message);
     }
   }
   const requests = await getMockRequests();
-  const updated = requests.map((item) => (item.id === id ? { ...item, status } : item));
+  let targetRequest = null;
+  const updated = requests.map((item) => {
+    if (item.id === id) {
+      targetRequest = { ...item, status };
+      return targetRequest;
+    }
+    return item;
+  });
   await persistMockRequests(updated);
+
+  // Send notification to seeker regarding the decision
+  if (targetRequest && targetRequest.seekerId) {
+    try {
+      if (status === RENTAL_STATUS.ACCEPTED) {
+        await pushNotification({
+          userId: targetRequest.seekerId,
+          title: 'Permintaan Sewa Disetujui! 🎉',
+          body: `Kabar baik! Pemilik hunian telah menyetujui pengajuan sewa untuk "${targetRequest.listingTitle}".`,
+          createdAt: new Date().toISOString(),
+        });
+      } else if (status === RENTAL_STATUS.REJECTED) {
+        await pushNotification({
+          userId: targetRequest.seekerId,
+          title: 'Permintaan Sewa Ditolak ⚠️',
+          body: `Mohon maaf, pengajuan sewa untuk "${targetRequest.listingTitle}" belum dapat diterima oleh pemilik.`,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    } catch (notifErr) {
+      console.warn('Gagal mengirim notifikasi status sewa:', notifErr);
+    }
+  }
+
   return { id, status };
 }
 

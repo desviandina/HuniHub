@@ -49,7 +49,7 @@ export default function HomeScreen({ navigation }) {
 
   const fetchListings = useCallback(
     async (isPullToRefresh = false) => {
-      if (!isPullToRefresh) setLoading(true);
+      if (!isPullToRefresh && listings.length === 0) setLoading(true);
       try {
         const data = await searchListings({ type });
         setListings(data);
@@ -60,7 +60,7 @@ export default function HomeScreen({ navigation }) {
         setRefreshing(false);
       }
     },
-    [type]
+    [type, listings.length]
   );
 
   useFocusEffect(
@@ -106,8 +106,8 @@ export default function HomeScreen({ navigation }) {
         {/* Top Greeting Section */}
         <View style={styles.greetingSection}>
           <View>
-            <Text style={styles.welcomeSubtext}>Selamat Datang di</Text>
-            <Text style={styles.brandTitle}>HuniHub ✨</Text>
+            <Text style={styles.welcomeSubtext}>Hunian, Kost & Penginapan</Text>
+            <Text style={styles.brandTitle}>HuniHub</Text>
           </View>
           <View style={styles.badgeHub}>
             <MaterialCommunityIcons name="shield-check" size={16} color="#0D9488" />
@@ -117,7 +117,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* Modern Searchbar */}
         <Searchbar
-          placeholder="Cari lokasi, homestay, atau kost..."
+          placeholder="Cari kost dekat UTU, Meureubo, Johan Pahlawan..."
           value={search}
           onChangeText={setSearch}
           onSubmitEditing={handleSearch}

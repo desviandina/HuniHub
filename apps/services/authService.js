@@ -19,7 +19,7 @@ import { ROLES } from '../constants/roles';
 
 export const SESSION_KEY = 'hunihub_session';
 
-const delay = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms));
+const delay = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function normalizeUser(firebaseUser, role) {
   return {

@@ -7,6 +7,7 @@ import {
   FAB,
   Dialog,
   Portal,
+  Snackbar,
   useTheme,
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -23,6 +24,7 @@ export default function ManageListingsScreen({ navigation }) {
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [target, setTarget] = useState(null);
+  const [snackbar, setSnackbar] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -40,7 +42,9 @@ export default function ManageListingsScreen({ navigation }) {
 
   const handleDelete = async () => {
     if (!target) return;
+    const deletedTitle = target.title;
     await deleteListing(target.id);
+    setSnackbar(`"${deletedTitle}" berhasil dihapus.`);
     setTarget(null);
     await load();
   };
@@ -167,6 +171,9 @@ export default function ManageListingsScreen({ navigation }) {
           </Dialog.Actions>
         </Dialog>
       </Portal>
+      <Snackbar visible={Boolean(snackbar)} onDismiss={() => setSnackbar('')}>
+        {snackbar}
+      </Snackbar>
     </View>
   );
 }
