@@ -51,7 +51,7 @@ export default function ProfileScreen({ navigation }) {
           labelStyle={{ color: '#FFFFFF', fontWeight: '800', fontSize: 28 }}
         />
         <Text style={styles.name}>{user?.name || 'Pengguna'}</Text>
-        <Text style={styles.email}>{user?.email}</Text>
+        <Text style={styles.email}>{user?.email || 'pengguna@hunihub.id'}</Text>
 
         <View style={styles.roleChip}>
           <MaterialCommunityIcons name="shield-account" size={14} color="#0D9488" />

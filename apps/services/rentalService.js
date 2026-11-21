@@ -23,7 +23,46 @@ function generateMockRequestId() {
 
 async function getMockRequests() {
   const raw = await AsyncStorage.getItem(REQUESTS_KEY);
-  return raw ? JSON.parse(raw) : [];
+  if (!raw) {
+    const initialSeed = [
+      {
+        id: 'req-demo-1',
+        listingId: 'l2',
+        seekerId: 'u1',
+        seekerName: 'Alya Putri',
+        ownerId: 'o1',
+        listingTitle: 'Kost Putri Teuku Umar Asri',
+        startDate: '2026-11-25',
+        endDate: '2026-12-25',
+        durationDays: 30,
+        totalPrice: 650000,
+        status: RENTAL_STATUS.PENDING,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: 'req-demo-2',
+        listingId: 'l1',
+        seekerId: 'u2',
+        seekerName: 'Rahmat Pratama',
+        ownerId: 'o1',
+        listingTitle: 'Homestay Meulaboh Indah',
+        startDate: '2026-11-20',
+        endDate: '2026-11-23',
+        durationDays: 3,
+        totalPrice: 350000,
+        status: RENTAL_STATUS.ACCEPTED,
+        createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+      },
+    ];
+    await AsyncStorage.setItem(REQUESTS_KEY, JSON.stringify(initialSeed));
+    return initialSeed;
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 async function persistMockRequests(requests) {
@@ -126,7 +165,9 @@ export async function getRequestsBySeeker(seekerId) {
   }
   const requests = await getMockRequests();
   if (!seekerId) return requests;
-  return requests.filter((item) => item.seekerId === seekerId || item.seekerId === 'u1');
+  return requests.filter(
+    (item) => item.seekerId === seekerId || item.seekerId === 'u1' || item.seekerId === 'u2'
+  );
 }
 
 export async function getRequestsByOwner(ownerId) {
@@ -146,7 +187,7 @@ export async function getRequestsByOwner(ownerId) {
   const requests = await getMockRequests();
   if (!ownerId) return requests;
   return requests.filter(
-    (item) => item.ownerId === ownerId || item.ownerId === 'o1' || ownerId === 'o1'
+    (item) => item.ownerId === ownerId || item.ownerId === 'o1' || ownerId === 'o1' || !item.ownerId
   );
 }
 

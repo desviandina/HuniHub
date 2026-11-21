@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { FlatList, View, StyleSheet, RefreshControl, Platform } from 'react-native';
+import { FlatList, View, StyleSheet, RefreshControl, Platform, Pressable } from 'react-native';
 import { Text, Button, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -112,23 +112,32 @@ export default function DashboardScreen({ navigation }) {
 
             {/* Statistics Cards */}
             <View style={styles.statsRow}>
-              <View style={[styles.statBox, { backgroundColor: '#F0FDFA', borderColor: '#CCFBF1' }]}>
+              <Pressable
+                style={[styles.statBox, { backgroundColor: '#F0FDFA', borderColor: '#CCFBF1' }]}
+                onPress={() => navigation.navigate('Kelola')}
+              >
                 <MaterialCommunityIcons name="office-building" size={22} color="#0D9488" />
                 <Text style={[styles.statValue, { color: '#0F766E' }]}>{listings.length}</Text>
                 <Text style={styles.statLabel}>Total Hunian</Text>
-              </View>
+              </Pressable>
 
-              <View style={[styles.statBox, { backgroundColor: '#FFFBEB', borderColor: '#FEF3C7' }]}>
+              <Pressable
+                style={[styles.statBox, { backgroundColor: '#FFFBEB', borderColor: '#FEF3C7' }]}
+                onPress={() => navigation.navigate('Permintaan')}
+              >
                 <MaterialCommunityIcons name="clock-outline" size={22} color="#D97706" />
                 <Text style={[styles.statValue, { color: '#B45309' }]}>{pendingCount}</Text>
                 <Text style={styles.statLabel}>Menunggu</Text>
-              </View>
+              </Pressable>
 
-              <View style={[styles.statBox, { backgroundColor: '#F0FDF4', borderColor: '#DCFCE7' }]}>
+              <Pressable
+                style={[styles.statBox, { backgroundColor: '#F0FDF4', borderColor: '#DCFCE7' }]}
+                onPress={() => navigation.navigate('Permintaan')}
+              >
                 <MaterialCommunityIcons name="check-circle-outline" size={22} color="#16A34A" />
                 <Text style={[styles.statValue, { color: '#15803D' }]}>{activeCount}</Text>
                 <Text style={styles.statLabel}>Disetujui</Text>
-              </View>
+              </Pressable>
             </View>
 
             <View style={styles.sectionHeadingRow}>

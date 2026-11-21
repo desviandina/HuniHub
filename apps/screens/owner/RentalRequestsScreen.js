@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { FlatList, View, StyleSheet, Platform } from 'react-native';
+import { FlatList, View, StyleSheet, Platform, ScrollView, Pressable } from 'react-native';
 import { Text, Button, useTheme, Snackbar, Portal, Dialog } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -11,6 +11,14 @@ import {
 import { formatRupiah, formatDate } from '../../utils/formatters';
 import { RENTAL_STATUS, RENTAL_STATUS_LABEL } from '../../constants/listing';
 import { useAuth } from '../../context/AuthContext';
+
+const STATUS_FILTERS = [
+  { key: 'all', label: 'Semua' },
+  { key: RENTAL_STATUS.PENDING, label: 'Menunggu' },
+  { key: RENTAL_STATUS.ACCEPTED, label: 'Disetujui' },
+  { key: RENTAL_STATUS.REJECTED, label: 'Ditolak' },
+  { key: RENTAL_STATUS.COMPLETED, label: 'Selesai' },
+];
 
 function StatusBadge({ status }) {
   if (status === RENTAL_STATUS.ACCEPTED) {
@@ -57,6 +65,7 @@ export default function RentalRequestsScreen({ navigation }) {
   const theme = useTheme();
   const { user } = useAuth();
   const [requests, setRequests] = useState([]);
+  const [activeFilter, setActiveFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [snackbar, setSnackbar] = useState('');
   const [rejectTarget, setRejectTarget] = useState(null);
@@ -178,10 +187,37 @@ export default function RentalRequestsScreen({ navigation }) {
     []
   );
 
+  const filteredRequests =
+    activeFilter === 'all'
+      ? requests
+      : requests.filter((item) => item.status === activeFilter);
+
   return (
     <View style={styles.container}>
+      {/* Filter Tabs */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRow}
+      >
+        {STATUS_FILTERS.map((f) => {
+          const isActive = activeFilter === f.key;
+          return (
+            <Pressable
+              key={f.key}
+              onPress={() => setActiveFilter(f.key)}
+              style={[styles.filterPill, isActive && styles.filterPillActive]}
+            >
+              <Text style={[styles.filterPillText, isActive && styles.filterPillTextActive]}>
+                {f.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
       <FlatList
-        data={requests}
+        data={filteredRequests}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
         contentContainerStyle={styles.list}
@@ -250,6 +286,32 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
+  },
+  filterRow: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  filterPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  filterPillActive: {
+    backgroundColor: '#0D9488',
+    borderColor: '#0D9488',
+  },
+  filterPillText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  filterPillTextActive: {
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   list: {
     padding: 16,

@@ -24,8 +24,10 @@ import {
   Snackbar,
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { getListingById, updateListingRating } from '../../services/listingService';
 import { getReviewsForListing, addReview } from '../../services/reviewService';
+import { checkDuplicateRequest } from '../../services/rentalService';
 import { haversineDistanceKm } from '../../services/locationService';
 import { formatRupiah, formatDistance, formatDate } from '../../utils/formatters';
 import { LISTING_TYPES } from '../../constants/listing';
@@ -78,6 +80,7 @@ export default function ListingDetailScreen({ route, navigation }) {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
+  const [hasPendingRequest, setHasPendingRequest] = useState(false);
   const [snackbar, setSnackbar] = useState('');
 
   const load = useCallback(async () => {
@@ -89,17 +92,24 @@ export default function ListingDetailScreen({ route, navigation }) {
       }
       const dataReviews = await getReviewsForListing(listingId);
       setReviews(dataReviews);
+
+      if (user?.role !== ROLES.OWNER) {
+        const isDup = await checkDuplicateRequest(user?.uid, listingId);
+        setHasPendingRequest(isDup);
+      }
     } catch (err) {
       console.warn('Gagal memuat detail hunian:', err);
       setSnackbar('Gagal memuat detail hunian. Periksa koneksi Anda.');
     } finally {
       setLoading(false);
     }
-  }, [listingId]);
+  }, [listingId, user?.role, user?.uid]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const handleOpenGoogleMaps = () => {
     if (!listing) return;
@@ -466,6 +476,18 @@ export default function ListingDetailScreen({ route, navigation }) {
             onPress={() => navigation.navigate('AddEditListing', { listingId })}
           >
             Edit Hunian
+          </Button>
+        ) : hasPendingRequest ? (
+          <Button
+            mode="contained-tonal"
+            style={styles.bookButton}
+            buttonColor="#FEF3C7"
+            textColor="#B45309"
+            icon="clock-outline"
+            labelStyle={styles.bookButtonLabel}
+            onPress={() => navigation.navigate('Main', { screen: 'Riwayat' })}
+          >
+            Menunggu Konfirmasi
           </Button>
         ) : listing.available !== false ? (
           <Button

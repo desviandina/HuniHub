@@ -220,7 +220,7 @@ export default function RentalRequestFormScreen({ route, navigation }) {
         totalPrice,
       });
       setSnackbar('Pengajuan sewa berhasil dikirim ke pemilik hunian!');
-      setTimeout(() => navigation.goBack(), 1400);
+      setTimeout(() => navigation.navigate('Main', { screen: 'Riwayat' }), 1200);
     } catch (err) {
       setError('Gagal mengirim permintaan sewa. Silakan coba lagi.');
     } finally {
