@@ -23,8 +23,8 @@ export default function DashboardScreen({ navigation }) {
       if (!isPullToRefresh) setLoading(true);
       try {
         const [listingData, requestData] = await Promise.all([
-          getListingsByOwner(user.uid),
-          getRequestsByOwner(user.uid),
+          getListingsByOwner(user?.uid || 'o1'),
+          getRequestsByOwner(user?.uid || 'o1'),
         ]);
         setListings(listingData);
         setRequests(requestData);

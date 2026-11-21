@@ -64,6 +64,17 @@ export function clearStoredSession() {
   return AsyncStorage.removeItem(SESSION_KEY);
 }
 
+function getMockUid(email, role) {
+  const lower = (email || '').toLowerCase().trim();
+  if (lower === 'rudi@hunihub.test' || lower === 'rudi@gmail.com') return 'o1';
+  if (lower === 'sari@hunihub.test') return 'o2';
+  if (lower === 'doni@hunihub.test') return 'o3';
+  if (lower === 'alya@hunihub.test' || lower === 'alya@gmail.com') return 'u1';
+  if (role === ROLES.OWNER) return 'o1';
+  const sanitized = lower.replace(/[^a-z0-9]/g, '_');
+  return sanitized ? `user_${sanitized}` : 'u1';
+}
+
 export async function registerWithEmail({ email, password, name, role }) {
   const normalizedRole = ROLES[role] ? role : ROLES.SEEKER;
   if (FIREBASE_ENABLED) {
@@ -73,10 +84,11 @@ export async function registerWithEmail({ email, password, name, role }) {
     return normalizeUser(credential.user, normalizedRole);
   }
   await delay();
+  const lowerEmail = (email || '').toLowerCase().trim();
   const session = {
-    uid: 'mock-' + Date.now(),
-    email,
-    name: name || email.split('@')[0],
+    uid: getMockUid(lowerEmail, normalizedRole),
+    email: lowerEmail,
+    name: name || lowerEmail.split('@')[0],
     role: normalizedRole,
     isMock: true,
   };
@@ -93,7 +105,7 @@ export async function loginWithEmail({ email, password, role }) {
     return normalizeUser(credential.user, savedRole);
   }
   await delay();
-  const lowerEmail = email.toLowerCase().trim();
+  const lowerEmail = (email || '').toLowerCase().trim();
   const demoUsers = {
     'rudi@hunihub.test': { uid: 'o1', name: 'Pak Rudi', role: ROLES.OWNER },
     'rudi@gmail.com': { uid: 'o1', name: 'Pak Rudi', role: ROLES.OWNER },
@@ -105,9 +117,9 @@ export async function loginWithEmail({ email, password, role }) {
 
   const matched = demoUsers[lowerEmail];
   const session = {
-    uid: matched?.uid || (normalizedRole === ROLES.OWNER ? 'o1' : 'mock-' + Date.now()),
-    email,
-    name: matched?.name || email.split('@')[0],
+    uid: getMockUid(lowerEmail, normalizedRole),
+    email: lowerEmail,
+    name: matched?.name || lowerEmail.split('@')[0],
     role: matched?.role || normalizedRole,
     isMock: true,
   };
@@ -130,24 +142,16 @@ export async function loginWithGoogle(role) {
     return normalizeUser(result.user, normalizedRole);
   }
   await delay();
+  const isOwner = normalizedRole === ROLES.OWNER;
   const session = {
-    uid: 'mock-google-' + Date.now(),
-    email: 'alya@gmail.com',
-    name: 'Alya Putri',
+    uid: isOwner ? 'o1' : 'u1',
+    email: isOwner ? 'rudi@hunihub.test' : 'alya@hunihub.test',
+    name: isOwner ? 'Pak Rudi' : 'Alya Putri',
     role: normalizedRole,
     isMock: true,
   };
   return persistSession(session);
 }
-
-const ALL_HUNIHUB_KEYS = [
-  'hunihub_session',
-  'hunihub_listings',
-  'hunihub_listings_version',
-  'hunihub_requests',
-  'hunihub_reviews',
-  'hunihub_notifications',
-];
 
 export async function logout() {
   if (FIREBASE_ENABLED) {
@@ -156,7 +160,9 @@ export async function logout() {
       await signOut(auth);
     }
   }
-  await AsyncStorage.multiRemove(ALL_HUNIHUB_KEYS);
+  // Hanya hapus sesi aktif saat logout agar data permintaan sewa,
+  // notifikasi, dan hunian tetap tersimpan saat berganti akun
+  await AsyncStorage.removeItem(SESSION_KEY);
 }
 
 export async function forgotPassword(email) {

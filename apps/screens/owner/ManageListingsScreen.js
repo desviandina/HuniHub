@@ -28,11 +28,11 @@ export default function ManageListingsScreen({ navigation }) {
 
   const load = useCallback(async () => {
     try {
-      setListings(await getListingsByOwner(user.uid));
+      setListings(await getListingsByOwner(user?.uid || 'o1'));
     } finally {
       setLoading(false);
     }
-  }, [user.uid]);
+  }, [user?.uid]);
 
   useFocusEffect(
     useCallback(() => {

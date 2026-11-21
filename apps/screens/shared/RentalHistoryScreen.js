@@ -71,11 +71,11 @@ export default function RentalHistoryScreen({ navigation }) {
 
   const load = useCallback(async () => {
     try {
-      setRequests(await getRequestsBySeeker(user.uid));
+      setRequests(await getRequestsBySeeker(user?.uid || 'u1'));
     } finally {
       setLoading(false);
     }
-  }, [user.uid]);
+  }, [user?.uid]);
 
   useFocusEffect(
     useCallback(() => {

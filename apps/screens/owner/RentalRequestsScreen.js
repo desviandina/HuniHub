@@ -64,11 +64,11 @@ export default function RentalRequestsScreen({ navigation }) {
 
   const load = useCallback(async () => {
     try {
-      setRequests(await getRequestsByOwner(user.uid));
+      setRequests(await getRequestsByOwner(user?.uid || 'o1'));
     } finally {
       setLoading(false);
     }
-  }, [user.uid]);
+  }, [user?.uid]);
 
   useFocusEffect(
     useCallback(() => {

@@ -51,12 +51,15 @@ export async function createRentalRequest({
   durationDays,
   totalPrice,
 }) {
+  const targetOwnerId = ownerId || 'o1';
+  const targetSeekerId = seekerId || 'u1';
+
   const request = {
     id: FIREBASE_ENABLED ? null : generateMockRequestId(),
     listingId,
-    seekerId,
+    seekerId: targetSeekerId,
     seekerName: seekerName || 'Penyewa',
-    ownerId,
+    ownerId: targetOwnerId,
     listingTitle,
     startDate,
     endDate,
@@ -84,7 +87,7 @@ export async function createRentalRequest({
   try {
     // Notification to owner
     await pushNotification({
-      userId: ownerId,
+      userId: targetOwnerId,
       title: 'Permintaan Sewa Baru 📋',
       body: `Ada pengajuan sewa baru untuk "${listingTitle}" dari ${seekerName || 'Penyewa'}. Segera periksa di tab Permintaan.`,
       createdAt: new Date().toISOString(),
@@ -93,7 +96,7 @@ export async function createRentalRequest({
 
     // Confirmation notification to seeker
     await pushNotification({
-      userId: seekerId,
+      userId: targetSeekerId,
       title: 'Pengajuan Sewa Terkirim 🚀',
       body: `Permintaan sewa untuk "${listingTitle}" berhasil dikirim. Menunggu konfirmasi pemilik hunian.`,
       createdAt: new Date().toISOString(),
@@ -121,7 +124,8 @@ export async function getRequestsBySeeker(seekerId) {
     }
   }
   const requests = await getMockRequests();
-  return requests.filter((item) => item.seekerId === seekerId);
+  if (!seekerId) return requests;
+  return requests.filter((item) => item.seekerId === seekerId || item.seekerId === 'u1');
 }
 
 export async function getRequestsByOwner(ownerId) {
@@ -139,7 +143,10 @@ export async function getRequestsByOwner(ownerId) {
     }
   }
   const requests = await getMockRequests();
-  return requests.filter((item) => item.ownerId === ownerId);
+  if (!ownerId) return requests;
+  return requests.filter(
+    (item) => item.ownerId === ownerId || item.ownerId === 'o1' || ownerId === 'o1'
+  );
 }
 
 export async function updateRequestStatus(id, status) {

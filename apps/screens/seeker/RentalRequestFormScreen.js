@@ -212,8 +212,8 @@ export default function RentalRequestFormScreen({ route, navigation }) {
         listingId,
         seekerId: user?.uid || 'u1',
         seekerName: user?.name || 'Penyewa',
-        ownerId: listing.ownerId,
-        listingTitle: listing.title,
+        ownerId: listing?.ownerId || 'o1',
+        listingTitle: listing?.title || 'Hunian Meulaboh',
         startDate,
         endDate,
         durationDays: rangeInfo.days,  // FIX: gunakan .days bukan .months
