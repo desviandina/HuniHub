@@ -8,7 +8,7 @@ import { listNotifications, markAsRead } from '../../services/notificationServic
 import { formatDate } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
 
-export default function NotificationsScreen() {
+export default function NotificationsScreen({ navigation }) {
   const theme = useTheme();
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
@@ -32,6 +32,13 @@ export default function NotificationsScreen() {
     if (!item.read) {
       await markAsRead(item.id);
       await load();
+    }
+
+    // Deep-link ke screen terkait berdasarkan action
+    if (item.action === 'go_to_requests' && navigation) {
+      navigation.navigate('Permintaan');
+    } else if (item.action === 'go_to_history' && navigation) {
+      navigation.navigate('Riwayat');
     }
   };
 
@@ -66,13 +73,23 @@ export default function NotificationsScreen() {
                 {isUnread && <View style={styles.unreadDot} />}
               </View>
               <Text style={styles.itemBody}>{item.body}</Text>
-              <Text style={styles.itemDate}>{formatDate(item.createdAt)}</Text>
+              <View style={styles.metaRow}>
+                <Text style={styles.itemDate}>{formatDate(item.createdAt)}</Text>
+                {item.action && (
+                  <View style={styles.actionChip}>
+                    <MaterialCommunityIcons name="arrow-right" size={11} color="#0D9488" />
+                    <Text style={styles.actionChipText}>
+                      {item.action === 'go_to_requests' ? 'Lihat Permintaan' : 'Lihat Riwayat'}
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
           </View>
         </Pressable>
       );
     },
-    []
+    [navigation]
   );
 
   return (
@@ -154,12 +171,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
     color: '#0F172A',
+    flex: 1,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: '#0D9488',
+    marginLeft: 6,
   },
   itemBody: {
     fontSize: 13,
@@ -167,8 +186,29 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginBottom: 6,
   },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   itemDate: {
     fontSize: 11,
     color: '#94A3B8',
+  },
+  actionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  actionChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0D9488',
   },
 });

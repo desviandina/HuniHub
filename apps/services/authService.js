@@ -4,6 +4,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
+  sendPasswordResetEmail,
   GoogleAuthProvider,
   signInWithCredential,
 } from 'firebase/auth';
@@ -139,6 +140,15 @@ export async function loginWithGoogle(role) {
   return persistSession(session);
 }
 
+const ALL_HUNIHUB_KEYS = [
+  'hunihub_session',
+  'hunihub_listings',
+  'hunihub_listings_version',
+  'hunihub_requests',
+  'hunihub_reviews',
+  'hunihub_notifications',
+];
+
 export async function logout() {
   if (FIREBASE_ENABLED) {
     const auth = getAuth(app);
@@ -146,5 +156,15 @@ export async function logout() {
       await signOut(auth);
     }
   }
-  await clearStoredSession();
+  await AsyncStorage.multiRemove(ALL_HUNIHUB_KEYS);
+}
+
+export async function forgotPassword(email) {
+  if (FIREBASE_ENABLED) {
+    const auth = getAuth(app);
+    await sendPasswordResetEmail(auth, email);
+    return;
+  }
+  // Mock mode: resolve without error (email would be sent in real env)
+  await delay();
 }

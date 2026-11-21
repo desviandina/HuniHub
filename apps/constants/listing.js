@@ -9,6 +9,7 @@ export const RENTAL_STATUS = {
   ACCEPTED: 'accepted',
   REJECTED: 'rejected',
   CANCELED: 'canceled',
+  COMPLETED: 'completed',
 };
 
 export const RENTAL_STATUS_LABEL = {
@@ -16,4 +17,5 @@ export const RENTAL_STATUS_LABEL = {
   [RENTAL_STATUS.ACCEPTED]: 'Disetujui',
   [RENTAL_STATUS.REJECTED]: 'Ditolak',
   [RENTAL_STATUS.CANCELED]: 'Dibatalkan',
+  [RENTAL_STATUS.COMPLETED]: 'Selesai',
 };

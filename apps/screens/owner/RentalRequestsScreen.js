@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { FlatList, View, StyleSheet, Platform } from 'react-native';
-import { Text, Button, useTheme, Snackbar } from 'react-native-paper';
+import { Text, Button, useTheme, Snackbar, Portal, Dialog } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import EmptyState from '../../components/EmptyState';
@@ -29,6 +29,22 @@ function StatusBadge({ status }) {
       </View>
     );
   }
+  if (status === RENTAL_STATUS.COMPLETED) {
+    return (
+      <View style={[styles.badge, styles.badgeCompleted]}>
+        <MaterialCommunityIcons name="check-all" size={13} color="#2563EB" />
+        <Text style={[styles.badgeText, { color: '#1D4ED8' }]}>Selesai</Text>
+      </View>
+    );
+  }
+  if (status === RENTAL_STATUS.CANCELED) {
+    return (
+      <View style={[styles.badge, styles.badgeCanceled]}>
+        <MaterialCommunityIcons name="cancel" size={13} color="#6B7280" />
+        <Text style={[styles.badgeText, { color: '#4B5563' }]}>Dibatalkan</Text>
+      </View>
+    );
+  }
   return (
     <View style={[styles.badge, styles.badgePending]}>
       <MaterialCommunityIcons name="clock-outline" size={13} color="#D97706" />
@@ -43,6 +59,8 @@ export default function RentalRequestsScreen({ navigation }) {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [snackbar, setSnackbar] = useState('');
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejecting, setRejecting] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -58,14 +76,25 @@ export default function RentalRequestsScreen({ navigation }) {
     }, [load])
   );
 
-  const updateStatus = async (request, status) => {
-    await updateRequestStatus(request.id, status);
-    setSnackbar(
-      status === RENTAL_STATUS.ACCEPTED
-        ? 'Permintaan sewa berhasil disetujui.'
-        : 'Permintaan sewa ditolak.'
-    );
+  const handleAccept = async (request) => {
+    await updateRequestStatus(request.id, RENTAL_STATUS.ACCEPTED);
+    setSnackbar('Permintaan sewa berhasil disetujui.');
     await load();
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectTarget) return;
+    setRejecting(true);
+    try {
+      await updateRequestStatus(rejectTarget.id, RENTAL_STATUS.REJECTED);
+      setRejectTarget(null);
+      setSnackbar('Permintaan sewa ditolak.');
+      await load();
+    } catch (err) {
+      setSnackbar('Gagal menolak permintaan. Coba lagi.');
+    } finally {
+      setRejecting(false);
+    }
   };
 
   const keyExtractor = useCallback((item) => item.id, []);
@@ -80,10 +109,20 @@ export default function RentalRequestsScreen({ navigation }) {
           <StatusBadge status={item.status} />
         </View>
 
+        {/* Nama Penyewa */}
+        {item.seekerName ? (
+          <View style={styles.seekerRow}>
+            <MaterialCommunityIcons name="account-outline" size={15} color="#0D9488" />
+            <Text style={styles.seekerName}>{item.seekerName}</Text>
+          </View>
+        ) : null}
+
         <View style={styles.infoRow}>
           <MaterialCommunityIcons name="calendar-clock" size={15} color="#64748B" />
           <Text style={styles.infoText}>
-            {item.endDate ? `${formatDate(item.startDate)} s/d ${formatDate(item.endDate)}` : `Mulai ${formatDate(item.startDate)} • Durasi ${item.durationDays} bulan`}
+            {item.endDate
+              ? `${formatDate(item.startDate)} s/d ${formatDate(item.endDate)}`
+              : `Mulai ${formatDate(item.startDate)} • Durasi ${item.durationDays} hari`}
           </Text>
         </View>
 
@@ -99,7 +138,7 @@ export default function RentalRequestsScreen({ navigation }) {
               buttonColor="#0D9488"
               textColor="#FFFFFF"
               style={styles.actionBtn}
-              onPress={() => updateStatus(item, RENTAL_STATUS.ACCEPTED)}
+              onPress={() => handleAccept(item)}
             >
               Terima
             </Button>
@@ -107,7 +146,7 @@ export default function RentalRequestsScreen({ navigation }) {
               mode="outlined"
               textColor="#DC2626"
               style={[styles.actionBtn, styles.rejectBtn]}
-              onPress={() => updateStatus(item, RENTAL_STATUS.REJECTED)}
+              onPress={() => setRejectTarget(item)}
             >
               Tolak
             </Button>
@@ -144,6 +183,41 @@ export default function RentalRequestsScreen({ navigation }) {
           )
         }
       />
+
+      {/* Dialog Konfirmasi Penolakan */}
+      <Portal>
+        <Dialog visible={Boolean(rejectTarget)} onDismiss={() => setRejectTarget(null)}>
+          <Dialog.Title>Tolak Permintaan?</Dialog.Title>
+          <Dialog.Content>
+            <Text>
+              Anda yakin ingin menolak permintaan sewa{' '}
+              {rejectTarget?.seekerName ? (
+                <>
+                  dari <Text style={{ fontWeight: '700' }}>{rejectTarget.seekerName}</Text>{' '}
+                </>
+              ) : null}
+              untuk <Text style={{ fontWeight: '700' }}>{rejectTarget?.listingTitle}</Text>?
+              Penyewa akan mendapatkan notifikasi penolakan.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setRejectTarget(null)} textColor="#64748B">
+              Batal
+            </Button>
+            <Button
+              mode="contained"
+              buttonColor="#DC2626"
+              textColor="#FFFFFF"
+              loading={rejecting}
+              onPress={handleConfirmReject}
+              style={{ borderRadius: 10 }}
+            >
+              Ya, Tolak
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
       <Snackbar visible={Boolean(snackbar)} onDismiss={() => setSnackbar('')}>
         {snackbar}
       </Snackbar>
@@ -172,7 +246,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
     gap: 8,
   },
   listingTitle: {
@@ -180,6 +254,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0F172A',
     flex: 1,
+  },
+  seekerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 8,
+  },
+  seekerName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0D9488',
   },
   badge: {
     flexDirection: 'row',
@@ -203,6 +288,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFBEB',
     borderWidth: 1,
     borderColor: '#FEF3C7',
+  },
+  badgeCompleted: {
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#DBEAFE',
+  },
+  badgeCanceled: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   badgeText: {
     fontSize: 11,

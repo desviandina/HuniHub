@@ -17,7 +17,7 @@ import {
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getListingById } from '../../services/listingService';
-import { createRentalRequest } from '../../services/rentalService';
+import { createRentalRequest, checkDuplicateRequest } from '../../services/rentalService';
 import { formatRupiah, formatDate } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
 
@@ -190,17 +190,33 @@ export default function RentalRequestFormScreen({ route, navigation }) {
       setError('Silakan pilih rentang tanggal mulai dan tanggal selesai sewa.');
       return;
     }
+
+    // Validasi: tanggal mulai tidak boleh di masa lalu
+    if (startDate < todayStr) {
+      setError('Tanggal mulai tidak boleh di masa lalu. Silakan pilih tanggal hari ini atau yang akan datang.');
+      return;
+    }
+
     setError('');
     setLoading(true);
     try {
+      // Cek duplikat permintaan yang masih pending
+      const isDuplicate = await checkDuplicateRequest(user?.uid, listingId);
+      if (isDuplicate) {
+        setError('Anda sudah memiliki permintaan sewa yang sedang menunggu konfirmasi untuk hunian ini.');
+        setLoading(false);
+        return;
+      }
+
       await createRentalRequest({
         listingId,
         seekerId: user?.uid || 'u1',
+        seekerName: user?.name || 'Penyewa',
         ownerId: listing.ownerId,
         listingTitle: listing.title,
         startDate,
         endDate,
-        durationDays: rangeInfo.months,
+        durationDays: rangeInfo.days,  // FIX: gunakan .days bukan .months
         totalPrice,
       });
       setSnackbar('Pengajuan sewa berhasil dikirim ke pemilik hunian!');
@@ -345,16 +361,18 @@ export default function RentalRequestFormScreen({ route, navigation }) {
               const isInRange =
                 startDate && endDate && cellDateStr > startDate && cellDateStr < endDate;
               const isToday = cellDateStr === todayStr;
+              const isPast = cellDateStr < todayStr;
 
               return (
                 <Pressable
                   key={cellDateStr}
-                  onPress={() => handleDayPress(day)}
+                  onPress={() => !isPast && handleDayPress(day)}
                   style={[
                     styles.dayCell,
                     isInRange && styles.dayCellInRange,
                     isStart && styles.dayCellStart,
                     isEnd && styles.dayCellEnd,
+                    isPast && styles.dayCellPast,
                   ]}
                 >
                   <View
@@ -369,6 +387,7 @@ export default function RentalRequestFormScreen({ route, navigation }) {
                         styles.dayNumberText,
                         (isStart || isEnd) && styles.dayNumberSelected,
                         isToday && !isStart && !isEnd && styles.dayNumberToday,
+                        isPast && styles.dayNumberPast,
                       ]}
                     >
                       {day}
@@ -640,6 +659,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 21,
     borderBottomRightRadius: 21,
   },
+  dayCellPast: {
+    opacity: 0.35,
+  },
   dayCircle: {
     width: 34,
     height: 34,
@@ -666,6 +688,9 @@ const styles = StyleSheet.create({
   dayNumberToday: {
     color: '#0D9488',
     fontWeight: '800',
+  },
+  dayNumberPast: {
+    color: '#CBD5E1',
   },
   // Summary Card
   summaryCard: {

@@ -13,10 +13,14 @@ import {
   Button,
   HelperText,
   useTheme,
+  Portal,
+  Dialog,
+  Snackbar,
 } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../constants/roles';
+import { forgotPassword } from '../../services/authService';
 
 export default function LoginScreen({ navigation }) {
   const theme = useTheme();
@@ -27,6 +31,12 @@ export default function LoginScreen({ navigation }) {
   const [role, setRole] = useState(ROLES.SEEKER);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Forgot Password state
+  const [showForgotDialog, setShowForgotDialog] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [snackbar, setSnackbar] = useState('');
 
   const handleSelectRole = (newRole) => {
     setRole(newRole);
@@ -64,6 +74,24 @@ export default function LoginScreen({ navigation }) {
       setError('Gagal masuk dengan Google.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!forgotEmail.trim()) {
+      setSnackbar('Masukkan alamat email Anda terlebih dahulu.');
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      await forgotPassword(forgotEmail.trim());
+      setShowForgotDialog(false);
+      setForgotEmail('');
+      setSnackbar('Email reset password telah dikirim. Periksa kotak masuk Anda.');
+    } catch (err) {
+      setSnackbar('Gagal mengirim email reset. Periksa apakah email terdaftar.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -197,6 +225,19 @@ export default function LoginScreen({ navigation }) {
             Masuk dengan Google
           </Button>
 
+          {/* Lupa Password */}
+          <Button
+            mode="text"
+            textColor="#0D9488"
+            onPress={() => {
+              setForgotEmail(email);
+              setShowForgotDialog(true);
+            }}
+            style={styles.forgotLink}
+          >
+            Lupa Password?
+          </Button>
+
           <Button
             mode="text"
             textColor="#0D9488"
@@ -207,6 +248,49 @@ export default function LoginScreen({ navigation }) {
           </Button>
         </View>
       </ScrollView>
+
+      {/* Dialog Lupa Password */}
+      <Portal>
+        <Dialog visible={showForgotDialog} onDismiss={() => setShowForgotDialog(false)}>
+          <Dialog.Title>Reset Password</Dialog.Title>
+          <Dialog.Content>
+            <Text style={{ color: '#475569', marginBottom: 12, fontSize: 13 }}>
+              Masukkan email akun Anda. Kami akan mengirimkan tautan untuk mengatur ulang password.
+            </Text>
+            <TextInput
+              label="Email"
+              value={forgotEmail}
+              onChangeText={setForgotEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              mode="outlined"
+              outlineColor="#E2E8F0"
+              activeOutlineColor="#0D9488"
+              style={{ backgroundColor: '#FFFFFF' }}
+              left={<TextInput.Icon icon="email-outline" color="#0D9488" />}
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowForgotDialog(false)} textColor="#64748B">
+              Batal
+            </Button>
+            <Button
+              mode="contained"
+              buttonColor="#0D9488"
+              textColor="#FFFFFF"
+              loading={forgotLoading}
+              onPress={handleForgotPassword}
+              style={{ borderRadius: 10 }}
+            >
+              Kirim Email
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <Snackbar visible={Boolean(snackbar)} onDismiss={() => setSnackbar('')}>
+        {snackbar}
+      </Snackbar>
     </KeyboardAvoidingView>
   );
 }
@@ -317,7 +401,10 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderColor: '#E2E8F0',
   },
+  forgotLink: {
+    marginTop: -4,
+  },
   registerLink: {
-    marginTop: 6,
+    marginTop: 2,
   },
 });

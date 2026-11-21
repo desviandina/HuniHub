@@ -89,6 +89,9 @@ export default function ListingDetailScreen({ route, navigation }) {
       }
       const dataReviews = await getReviewsForListing(listingId);
       setReviews(dataReviews);
+    } catch (err) {
+      console.warn('Gagal memuat detail hunian:', err);
+      setSnackbar('Gagal memuat detail hunian. Periksa koneksi Anda.');
     } finally {
       setLoading(false);
     }
