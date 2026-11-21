@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Image,
 } from 'react-native';
 import {
   Text,
@@ -64,6 +65,11 @@ export default function RegisterScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>Buat Akun HuniHub</Text>
           <Text style={styles.subtitle}>
             Bergabung untuk mencari atau mempromosikan hunian terbaik.
@@ -220,6 +226,12 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
     alignItems: 'center',
+  },
+  logoImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    marginBottom: 8,
   },
   title: {
     fontSize: 24,

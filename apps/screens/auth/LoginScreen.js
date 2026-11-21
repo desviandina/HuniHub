@@ -6,6 +6,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  Image,
 } from 'react-native';
 import {
   Text,
@@ -106,12 +107,14 @@ export default function LoginScreen({ navigation }) {
       >
         {/* Brand Header */}
         <View style={styles.header}>
-          <View style={styles.logoCircle}>
-            <MaterialCommunityIcons name="home-heart" size={38} color="#FFFFFF" />
-          </View>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.brandTitle}>HuniHub</Text>
           <Text style={styles.brandSubtitle}>
-            Sewa Homestay, Kost, dan Rumah Lebih Nyaman
+            Temukan Hunian Nyaman di Meulaboh
           </Text>
         </View>
 
@@ -309,23 +312,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 24,
   },
-  logoCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: '#0D9488',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#0D9488',
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.3,
-        shadowRadius: 10,
-      },
-      android: { elevation: 6 },
-    }),
+  logoImage: {
+    width: 84,
+    height: 84,
+    borderRadius: 22,
+    marginBottom: 8,
   },
   brandTitle: {
     fontSize: 26,
