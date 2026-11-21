@@ -108,26 +108,32 @@ export default function RentalHistoryScreen({ navigation }) {
   const renderItem = useCallback(
     ({ item }) => (
       <View style={styles.card}>
-        <View style={styles.rowBetween}>
-          <Text style={styles.listingTitle} numberOfLines={1}>
-            {item.listingTitle}
-          </Text>
-          <StatusBadge status={item.status} />
-        </View>
+        <Pressable
+          onPress={() =>
+            item.listingId && navigation.navigate('ListingDetail', { listingId: item.listingId })
+          }
+        >
+          <View style={styles.rowBetween}>
+            <Text style={styles.listingTitle} numberOfLines={1}>
+              {item.listingTitle}
+            </Text>
+            <StatusBadge status={item.status} />
+          </View>
 
-        <View style={styles.infoRow}>
-          <MaterialCommunityIcons name="calendar-range" size={15} color="#64748B" />
-          <Text style={styles.infoText}>
-            {item.endDate
-              ? `${formatDate(item.startDate)} s/d ${formatDate(item.endDate)}`
-              : `Mulai ${formatDate(item.startDate)} • Durasi ${item.durationDays} hari`}
-          </Text>
-        </View>
+          <View style={styles.infoRow}>
+            <MaterialCommunityIcons name="calendar-range" size={15} color="#64748B" />
+            <Text style={styles.infoText}>
+              {item.endDate
+                ? `${formatDate(item.startDate)} s/d ${formatDate(item.endDate)}`
+                : `Mulai ${formatDate(item.startDate)} • Durasi ${item.durationDays} hari`}
+            </Text>
+          </View>
 
-        <View style={styles.priceRow}>
-          <Text style={styles.priceLabel}>Total Biaya Sewa:</Text>
-          <Text style={styles.priceValue}>{formatRupiah(item.totalPrice)}</Text>
-        </View>
+          <View style={styles.priceRow}>
+            <Text style={styles.priceLabel}>Total Biaya Sewa:</Text>
+            <Text style={styles.priceValue}>{formatRupiah(item.totalPrice)}</Text>
+          </View>
+        </Pressable>
 
         {/* Tombol batalkan — hanya tampil saat status PENDING */}
         {item.status === RENTAL_STATUS.PENDING && (
@@ -145,7 +151,7 @@ export default function RentalHistoryScreen({ navigation }) {
         )}
       </View>
     ),
-    []
+    [navigation]
   );
 
   return (

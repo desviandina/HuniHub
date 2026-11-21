@@ -19,7 +19,14 @@ async function getAll() {
 
 export async function listNotifications(user) {
   const items = await getAll();
-  return items.filter((item) => !item.userId || item.userId === user.uid);
+  if (!user || !user.uid) return items;
+  return items.filter(
+    (item) =>
+      !item.userId ||
+      item.userId === user.uid ||
+      (user.role === 'owner' && item.userId === 'o1') ||
+      (user.role === 'seeker' && item.userId === 'u1')
+  );
 }
 
 export async function markAsRead(id) {

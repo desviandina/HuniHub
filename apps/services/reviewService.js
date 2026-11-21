@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getFirestore, collection, getDocs, getDoc, doc, setDoc, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, getDoc, doc, addDoc, query, orderBy } from 'firebase/firestore';
 import { app, FIREBASE_ENABLED } from '../config/firebase';
 import { mockReviews } from './mockData';
 
@@ -30,8 +30,8 @@ export async function addReview({ listingId, reviewerId, reviewerName, rating, c
   if (FIREBASE_ENABLED) {
     try {
       const db = getFirestore(app);
-      const created = await setDoc(doc(collection(db, REVIEWS_COLLECTION)), review);
-      return { ...review, id: created.id };
+      const docRef = await addDoc(collection(db, REVIEWS_COLLECTION), review);
+      return { ...review, id: docRef.id };
     } catch (err) {
       console.warn('Gagal simpan ulasan ke Firestore, disimpan ke lokal:', err.message);
     }

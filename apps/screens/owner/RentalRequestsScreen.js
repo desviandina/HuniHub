@@ -82,6 +82,12 @@ export default function RentalRequestsScreen({ navigation }) {
     await load();
   };
 
+  const handleComplete = async (request) => {
+    await updateRequestStatus(request.id, RENTAL_STATUS.COMPLETED);
+    setSnackbar('Masa sewa telah ditandai selesai.');
+    await load();
+  };
+
   const handleConfirmReject = async () => {
     if (!rejectTarget) return;
     setRejecting(true);
@@ -149,6 +155,21 @@ export default function RentalRequestsScreen({ navigation }) {
               onPress={() => setRejectTarget(item)}
             >
               Tolak
+            </Button>
+          </View>
+        )}
+
+        {item.status === RENTAL_STATUS.ACCEPTED && (
+          <View style={styles.actions}>
+            <Button
+              mode="contained-tonal"
+              buttonColor="#CCFBF1"
+              textColor="#0F766E"
+              icon="check-circle-outline"
+              style={styles.actionBtn}
+              onPress={() => handleComplete(item)}
+            >
+              Tandai Sewa Selesai
             </Button>
           </View>
         )}

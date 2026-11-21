@@ -398,7 +398,7 @@ export default function ListingDetailScreen({ route, navigation }) {
               <Text style={styles.reviewCountText}>{reviews.length} Ulasan Terverifikasi</Text>
             </View>
 
-            {user?.role === ROLES.SEEKER && (
+            {user?.role !== ROLES.OWNER && (
               <Button
                 mode="contained"
                 buttonColor="#0D9488"
@@ -457,7 +457,17 @@ export default function ListingDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {listing.available && user?.role === ROLES.SEEKER ? (
+        {user?.role === ROLES.OWNER ? (
+          <Button
+            mode="outlined"
+            style={styles.bookButton}
+            textColor="#0D9488"
+            labelStyle={styles.bookButtonLabel}
+            onPress={() => navigation.navigate('AddEditListing', { listingId })}
+          >
+            Edit Hunian
+          </Button>
+        ) : listing.available !== false ? (
           <Button
             mode="contained"
             style={styles.bookButton}
@@ -467,16 +477,6 @@ export default function ListingDetailScreen({ route, navigation }) {
             onPress={() => navigation.navigate('RentalRequestForm', { listingId })}
           >
             Ajukan Sewa
-          </Button>
-        ) : user?.role === ROLES.OWNER ? (
-          <Button
-            mode="outlined"
-            style={styles.bookButton}
-            textColor="#0D9488"
-            labelStyle={styles.bookButtonLabel}
-            onPress={() => navigation.navigate('AddEditListing', { listingId })}
-          >
-            Edit Hunian
           </Button>
         ) : (
           <View style={styles.unavailableBadge}>

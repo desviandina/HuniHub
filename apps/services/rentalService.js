@@ -32,10 +32,11 @@ async function persistMockRequests(requests) {
 
 export async function checkDuplicateRequest(seekerId, listingId) {
   const requests = await getMockRequests();
+  const targetSeekerId = seekerId || 'u1';
   return requests.some(
     (item) =>
-      item.seekerId === seekerId &&
-      item.listingId === listingId &&
+      (item.seekerId === targetSeekerId || (targetSeekerId === 'u1' && item.seekerId === 'u1')) &&
+      String(item.listingId) === String(listingId) &&
       item.status === RENTAL_STATUS.PENDING
   );
 }

@@ -36,7 +36,7 @@ export default function DashboardScreen({ navigation }) {
         setRefreshing(false);
       }
     },
-    [user.uid]
+    [user?.uid]
   );
 
   useFocusEffect(

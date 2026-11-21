@@ -34,6 +34,16 @@ export default function SearchScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Update state when navigating from other screens (e.g. HomeScreen search)
+  useEffect(() => {
+    if (route.params?.keyword !== undefined) {
+      setKeyword(route.params.keyword);
+    }
+    if (route.params?.type !== undefined) {
+      setType(route.params.type);
+    }
+  }, [route.params?.keyword, route.params?.type]);
+
   // Debounce search keyword input to avoid lag and frequent re-renders while typing
   useEffect(() => {
     const timer = setTimeout(() => {
