@@ -72,7 +72,7 @@ export default function RegisterScreen({ navigation }) {
           />
           <Text style={styles.title}>Buat Akun HuniHub</Text>
           <Text style={styles.subtitle}>
-            Bergabung untuk mencari atau mempromosikan hunian terbaik.
+            Find, Choose, Stay • Temukan atau sewakan hunian terbaik.
           </Text>
         </View>
 

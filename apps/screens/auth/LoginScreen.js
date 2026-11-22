@@ -114,7 +114,7 @@ export default function LoginScreen({ navigation }) {
           />
           <Text style={styles.brandTitle}>HuniHub</Text>
           <Text style={styles.brandSubtitle}>
-            Temukan Hunian Nyaman di Meulaboh
+            Find, Choose, Stay • Hunian Meulaboh
           </Text>
         </View>
 
