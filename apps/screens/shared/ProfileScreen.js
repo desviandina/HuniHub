@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, Pressable, Linking } from 'react-native';
-import { Text, Avatar, Button, Divider, useTheme, Portal, Dialog } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, Pressable, Linking, Platform } from 'react-native';
+import { Text, Avatar, Button, Divider, useTheme, Portal, Dialog, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
-import { ROLES_LABEL } from '../../constants/roles';
+import { ROLES, ROLES_LABEL, ROLES_DESC } from '../../constants/roles';
 
 export default function ProfileScreen({ navigation }) {
   const theme = useTheme();
-  const { user, signOut } = useAuth();
+  const { user, signOut, activeMode, switchMode } = useAuth();
   const [activeModal, setActiveModal] = useState(null); // 'security' | 'support' | 'about'
+  const [switching, setSwitching] = useState(false);
+  const [snackbar, setSnackbar] = useState('');
+
+  const isOwner = activeMode === ROLES.OWNER;
+  const currentRoleLabel = ROLES_LABEL[activeMode] || 'Pencari Hunian';
+  const targetRole = isOwner ? ROLES.SEEKER : ROLES.OWNER;
+  const targetRoleLabel = ROLES_LABEL[targetRole];
 
   const initials = (user?.name || 'U')
     .split(' ')
@@ -16,6 +23,18 @@ export default function ProfileScreen({ navigation }) {
     .slice(0, 2)
     .join('')
     .toUpperCase();
+
+  const handleSwitchMode = async () => {
+    setSwitching(true);
+    try {
+      await switchMode(targetRole);
+      setSnackbar(`Berhasil beralih ke mode ${targetRoleLabel}!`);
+    } catch (err) {
+      setSnackbar('Gagal mengganti mode. Silakan coba lagi.');
+    } finally {
+      setSwitching(false);
+    }
+  };
 
   const handleMenuPress = (key) => {
     if (key === 'notifications') {
@@ -54,9 +73,51 @@ export default function ProfileScreen({ navigation }) {
         <Text style={styles.email}>{user?.email || 'pengguna@hunihub.id'}</Text>
 
         <View style={styles.roleChip}>
-          <MaterialCommunityIcons name="shield-account" size={14} color="#0D9488" />
-          <Text style={styles.roleText}>{ROLES_LABEL[user?.role] || 'Pengguna'}</Text>
+          <MaterialCommunityIcons
+            name={isOwner ? 'home-city' : 'account-search'}
+            size={14}
+            color="#0D9488"
+          />
+          <Text style={styles.roleText}>Mode: {currentRoleLabel}</Text>
         </View>
+      </View>
+
+      {/* Mode Switching Card - Requirement 4 */}
+      <View style={styles.modeCard}>
+        <View style={styles.modeCardHeader}>
+          <View style={styles.modeIconCircle}>
+            <MaterialCommunityIcons
+              name={isOwner ? 'swap-horizontal' : 'swap-horizontal'}
+              size={22}
+              color="#0D9488"
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.modeTitle}>Ganti Mode Akun</Text>
+            <Text style={styles.modeSubtitle}>
+              {isOwner
+                ? 'Ingin mencari atau menyewa hunian untuk diri sendiri?'
+                : 'Miliki hunian dan ingin memasarkannya ke penyewa?'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.modeDivider} />
+
+        <Button
+          mode="contained"
+          icon={isOwner ? 'account-search' : 'home-city'}
+          buttonColor="#0D9488"
+          textColor="#FFFFFF"
+          loading={switching}
+          disabled={switching}
+          onPress={handleSwitchMode}
+          style={styles.switchBtn}
+          contentStyle={{ height: 46 }}
+          labelStyle={{ fontWeight: '700', fontSize: 14 }}
+        >
+          {isOwner ? 'Ganti ke Mode Pencari Hunian' : 'Ganti ke Mode Pemilik Hunian'}
+        </Button>
       </View>
 
       {/* Account Settings Menu */}
@@ -105,10 +166,10 @@ export default function ProfileScreen({ navigation }) {
               <MaterialCommunityIcons name="shield-check" size={32} color="#0D9488" />
             </View>
             <Text style={styles.dialogText}>
-              Akun Anda terlindungi dengan enkripsi lokal aman berbasis AsyncStorage dan otentikasi terstandarisasi.
+              Akun Anda terlindungi dengan arsitektur multi-role yang aman. Satu akun terhubung langsung ke User ID unik Anda.
             </Text>
             <Text style={[styles.dialogText, { marginTop: 8 }]}>
-              Data pribadi, riwayat persewaan, dan kontak Anda tidak akan pernah dibagikan kepada pihak ketiga tanpa izin.
+              Data properti dan pengajuan sewa Anda terisolasi secara ketat dan tidak dapat diakses atau diubah oleh pengguna lain.
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
@@ -150,15 +211,15 @@ export default function ProfileScreen({ navigation }) {
                 style={{ flex: 1, borderRadius: 10 }}
                 onPress={handleOpenEmail}
               >
-                Email CS
+                Kirim Email
               </Button>
             </View>
             <Text style={styles.operationalText}>
-              ⏰ Jam Operasional: Setiap hari 08.00 - 22.00 WIB
+              Jam Layanan: Senin - Sabtu, 08.00 - 21.00 WIB
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setActiveModal(null)} textColor="#64748B">
+            <Button onPress={() => setActiveModal(null)} textColor="#0D9488">
               Tutup
             </Button>
           </Dialog.Actions>
@@ -174,18 +235,14 @@ export default function ProfileScreen({ navigation }) {
         >
           <Dialog.Title style={styles.dialogTitle}>Tentang HuniHub</Dialog.Title>
           <Dialog.Content>
-            <View style={styles.dialogIconBox}>
-              <MaterialCommunityIcons name="home-heart" size={36} color="#0D9488" />
-            </View>
-            <Text style={[styles.dialogTitleText, { textAlign: 'center', marginBottom: 4 }]}>
-              HuniHub v1.0.0
+            <Text style={styles.dialogText}>
+              <Text style={{ fontWeight: '800', color: '#0D9488' }}>HuniHub</Text> adalah platform digital persewaan properti yang menghubungkan pemilik hunian dengan pencari akomodasi.
             </Text>
-            <Text style={[styles.dialogText, { textAlign: 'center' }]}>
-              Platform penyewaan terpusat untuk Homestay, Kost, dan Rumah Sewa di daerah Aceh Barat (Meulaboh & Sekitarnya). Mempertemukan mahasiswa, pekerja, dan keluarga dengan pemilik hunian secara praktis dan terpercaya.
+            <Text style={[styles.dialogText, { marginTop: 8 }]}>
+              Mendukung 3 kategori hunian utama:{'\n'}• Kost{'\n'}• Homestay{'\n'}• Sewa Rumah
             </Text>
-            <Divider style={{ marginVertical: 12 }} />
-            <Text style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center' }}>
-              Dibuat dengan React Native (Expo) • Safe & Fast Local-First Storage
+            <Text style={[styles.dialogText, { marginTop: 8, fontStyle: 'italic', color: '#64748B' }]}>
+              Versi 1.0.0 • Dilengkapi Sistem Akun Multi-Role
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
@@ -195,6 +252,15 @@ export default function ProfileScreen({ navigation }) {
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      <Snackbar
+        visible={Boolean(snackbar)}
+        onDismiss={() => setSnackbar('')}
+        duration={3000}
+        style={{ backgroundColor: '#0F172A', marginBottom: 20 }}
+      >
+        {snackbar}
+      </Snackbar>
     </ScrollView>
   );
 }
@@ -206,7 +272,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-    paddingBottom: 40,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
   },
   header: {
     alignItems: 'center',
@@ -229,17 +295,64 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 10,
     paddingHorizontal: 12,
-    paddingVertical: 4,
+    paddingVertical: 5,
     borderRadius: 16,
     backgroundColor: '#F0FDFA',
     borderWidth: 1,
     borderColor: '#CCFBF1',
-    gap: 4,
+    gap: 6,
   },
   roleText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#0F766E',
+  },
+  modeCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#CCFBF1',
+    padding: 16,
+    marginBottom: 24,
+    shadowColor: '#0D9488',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  modeCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  modeIconCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 2,
+  },
+  modeSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 16,
+  },
+  modeDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 14,
+  },
+  switchBtn: {
+    borderRadius: 12,
   },
   menuContainer: {
     marginBottom: 24,
@@ -291,11 +404,6 @@ const styles = StyleSheet.create({
   },
   dialogTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#0F172A',
-  },
-  dialogTitleText: {
-    fontSize: 16,
     fontWeight: '800',
     color: '#0F172A',
   },

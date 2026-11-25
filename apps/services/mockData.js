@@ -20,6 +20,8 @@ export const mockListings = [
     lat: 4.1445,
     lng: 96.1275,
     available: true,
+    availabilityStatus: 'Tersedia',
+    rentalDuration: 'bulan',
     nearbyPlaces: [
       { id: 'nb1', name: 'Masjid Agung Baitul Makmur', distance: '400 m (5 mnt)', icon: 'mosque' },
       { id: 'nb2', name: 'Pasar Bina Usaha Meulaboh', distance: '750 m', icon: 'store' },
@@ -48,6 +50,8 @@ export const mockListings = [
     lat: 4.1355,
     lng: 96.1680,
     available: true,
+    availabilityStatus: 'Tersedia',
+    rentalDuration: 'bulan',
     nearbyPlaces: [
       { id: 'nb1', name: 'Gerbang Utama Kampus UTU', distance: '200 m (3 mnt jalan)', icon: 'school' },
       { id: 'nb2', name: 'Kampus STAIN Meulaboh', distance: '850 m', icon: 'school' },
@@ -76,6 +80,8 @@ export const mockListings = [
     lat: 4.1520,
     lng: 96.1260,
     available: true,
+    availabilityStatus: 'Tersedia',
+    rentalDuration: 'bulan',
     nearbyPlaces: [
       { id: 'nb1', name: 'RSUD Cut Nyak Dhien', distance: '800 m', icon: 'hospital-building' },
       { id: 'nb2', name: 'Masjid Agung Baitul Makmur', distance: '1.2 km', icon: 'mosque' },
@@ -103,6 +109,8 @@ export const mockListings = [
     lat: 4.1330,
     lng: 96.1650,
     available: true,
+    availabilityStatus: 'Tersedia',
+    rentalDuration: 'bulan',
     nearbyPlaces: [
       { id: 'nb1', name: 'Kampus Universitas Teuku Umar', distance: '450 m', icon: 'school' },
       { id: 'nb2', name: 'Warung Kopi Khop Meureubo', distance: '100 m', icon: 'coffee' },
@@ -130,6 +138,8 @@ export const mockListings = [
     lat: 4.1294,
     lng: 96.1158,
     available: true,
+    availabilityStatus: 'Tersedia',
+    rentalDuration: 'bulan',
     nearbyPlaces: [
       { id: 'nb1', name: 'Bibir Pantai Ujong Karang', distance: '30 m (langkah kaki)', icon: 'waves' },
       { id: 'nb2', name: 'Sentra Kuliner Ikan Bakar', distance: '150 m', icon: 'silverware-fork-knife' },

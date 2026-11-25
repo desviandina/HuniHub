@@ -70,8 +70,13 @@ export default function RentalHistoryScreen({ navigation }) {
   const [canceling, setCanceling] = useState(false);
 
   const load = useCallback(async () => {
+    if (!user?.uid) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
     try {
-      setRequests(await getRequestsBySeeker(user?.uid || 'u1'));
+      setRequests(await getRequestsBySeeker(user.uid));
     } finally {
       setLoading(false);
     }
@@ -92,7 +97,7 @@ export default function RentalHistoryScreen({ navigation }) {
     if (!cancelTarget) return;
     setCanceling(true);
     try {
-      await cancelRequest(cancelTarget.id);
+      await cancelRequest(cancelTarget.id, user?.uid);
       setCancelTarget(null);
       setSnackbar('Permintaan sewa berhasil dibatalkan.');
       await load();
@@ -278,7 +283,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
   },
   card: {
     backgroundColor: '#FFFFFF',

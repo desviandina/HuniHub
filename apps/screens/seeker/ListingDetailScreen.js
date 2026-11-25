@@ -30,7 +30,7 @@ import { getReviewsForListing, addReview } from '../../services/reviewService';
 import { checkDuplicateRequest } from '../../services/rentalService';
 import { haversineDistanceKm } from '../../services/locationService';
 import { formatRupiah, formatDistance, formatDate } from '../../utils/formatters';
-import { LISTING_TYPES } from '../../constants/listing';
+import { LISTING_TYPES, AVAILABILITY_STATUS } from '../../constants/listing';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../constants/roles';
 
@@ -463,19 +463,24 @@ export default function ListingDetailScreen({ route, navigation }) {
           <Text style={styles.bottomPriceLabel}>Biaya Sewa</Text>
           <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
             <Text style={styles.bottomPriceText}>{formatRupiah(listing.price)}</Text>
-            <Text style={styles.bottomPerMonth}> /bulan</Text>
+            <Text style={styles.bottomPerMonth}>
+              {' '}
+              /{listing.rentalDuration === 'tahun' ? 'tahun' : listing.rentalDuration === 'hari' ? 'hari' : 'bulan'}
+            </Text>
           </View>
         </View>
 
-        {user?.role === ROLES.OWNER ? (
+        {user?.uid && String(listing.ownerId) === String(user.uid) ? (
           <Button
-            mode="outlined"
+            mode="contained-tonal"
             style={styles.bookButton}
+            buttonColor="#F0FDFA"
             textColor="#0D9488"
+            icon="pencil"
             labelStyle={styles.bookButtonLabel}
             onPress={() => navigation.navigate('AddEditListing', { listingId })}
           >
-            Edit Hunian
+            Kelola Hunian
           </Button>
         ) : hasPendingRequest ? (
           <Button
@@ -489,7 +494,15 @@ export default function ListingDetailScreen({ route, navigation }) {
           >
             Menunggu Konfirmasi
           </Button>
-        ) : listing.available !== false ? (
+        ) : listing.availabilityStatus === AVAILABILITY_STATUS.RENTING_PROCESS ? (
+          <View style={[styles.unavailableBadge, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}>
+            <Text style={[styles.unavailableText, { color: '#B45309' }]}>Dalam Proses</Text>
+          </View>
+        ) : listing.availabilityStatus === AVAILABILITY_STATUS.UNAVAILABLE || listing.available === false ? (
+          <View style={styles.unavailableBadge}>
+            <Text style={styles.unavailableText}>Tidak Tersedia</Text>
+          </View>
+        ) : (
           <Button
             mode="contained"
             style={styles.bookButton}
@@ -500,10 +513,6 @@ export default function ListingDetailScreen({ route, navigation }) {
           >
             Ajukan Sewa
           </Button>
-        ) : (
-          <View style={styles.unavailableBadge}>
-            <Text style={styles.unavailableText}>Tidak Tersedia</Text>
-          </View>
         )}
       </View>
 

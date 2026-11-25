@@ -200,8 +200,20 @@ export default function RentalRequestFormScreen({ route, navigation }) {
     setError('');
     setLoading(true);
     try {
+      if (!user?.uid) {
+        setError('Sesi autentikasi tidak valid. Silakan masuk kembali.');
+        setLoading(false);
+        return;
+      }
+
+      if (listing?.ownerId && String(listing.ownerId) === String(user.uid)) {
+        setError('Anda adalah pemilik hunian ini. Tidak dapat mengajukan sewa pada properti milik sendiri.');
+        setLoading(false);
+        return;
+      }
+
       // Cek duplikat permintaan yang masih pending
-      const isDuplicate = await checkDuplicateRequest(user?.uid, listingId);
+      const isDuplicate = await checkDuplicateRequest(user.uid, listingId);
       if (isDuplicate) {
         setError('Anda sudah memiliki permintaan sewa yang sedang menunggu konfirmasi untuk hunian ini.');
         setLoading(false);
@@ -210,13 +222,13 @@ export default function RentalRequestFormScreen({ route, navigation }) {
 
       await createRentalRequest({
         listingId,
-        seekerId: user?.uid || 'u1',
-        seekerName: user?.name || 'Penyewa',
-        ownerId: listing?.ownerId || 'o1',
-        listingTitle: listing?.title || 'Hunian Meulaboh',
+        seekerId: user.uid,
+        seekerName: user.name || 'Penyewa',
+        ownerId: listing?.ownerId,
+        listingTitle: listing?.title || 'Hunian HuniHub',
         startDate,
         endDate,
-        durationDays: rangeInfo.days,  // FIX: gunakan .days bukan .months
+        durationDays: rangeInfo.days,
         totalPrice,
       });
       setSnackbar('Pengajuan sewa berhasil dikirim ke pemilik hunian!');

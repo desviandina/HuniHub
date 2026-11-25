@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import DashboardScreen from '../screens/owner/DashboardScreen';
@@ -21,6 +22,7 @@ export default function OwnerNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
+        tabBarHideOnKeyboard: true,
         headerTitleAlign: 'center',
         headerStyle: {
           backgroundColor: '#FFFFFF',
@@ -37,8 +39,8 @@ export default function OwnerNavigator() {
         tabBarActiveTintColor: colors.brand.primary,
         tabBarInactiveTintColor: colors.neutral.gray,
         tabBarStyle: {
-          height: 60,
-          paddingBottom: 8,
+          height: Platform.OS === 'ios' ? 70 : 64,
+          paddingBottom: Platform.OS === 'ios' ? 14 : 8,
           paddingTop: 6,
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,

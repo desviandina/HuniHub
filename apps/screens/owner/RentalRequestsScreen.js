@@ -72,8 +72,13 @@ export default function RentalRequestsScreen({ navigation }) {
   const [rejecting, setRejecting] = useState(false);
 
   const load = useCallback(async () => {
+    if (!user?.uid) {
+      setRequests([]);
+      setLoading(false);
+      return;
+    }
     try {
-      setRequests(await getRequestsByOwner(user?.uid || 'o1'));
+      setRequests(await getRequestsByOwner(user.uid));
     } finally {
       setLoading(false);
     }
@@ -86,13 +91,13 @@ export default function RentalRequestsScreen({ navigation }) {
   );
 
   const handleAccept = async (request) => {
-    await updateRequestStatus(request.id, RENTAL_STATUS.ACCEPTED);
+    await updateRequestStatus(request.id, RENTAL_STATUS.ACCEPTED, user?.uid);
     setSnackbar('Permintaan sewa berhasil disetujui.');
     await load();
   };
 
   const handleComplete = async (request) => {
-    await updateRequestStatus(request.id, RENTAL_STATUS.COMPLETED);
+    await updateRequestStatus(request.id, RENTAL_STATUS.COMPLETED, user?.uid);
     setSnackbar('Masa sewa telah ditandai selesai.');
     await load();
   };
@@ -101,7 +106,7 @@ export default function RentalRequestsScreen({ navigation }) {
     if (!rejectTarget) return;
     setRejecting(true);
     try {
-      await updateRequestStatus(rejectTarget.id, RENTAL_STATUS.REJECTED);
+      await updateRequestStatus(rejectTarget.id, RENTAL_STATUS.REJECTED, user?.uid);
       setRejectTarget(null);
       setSnackbar('Permintaan sewa ditolak.');
       await load();
@@ -315,7 +320,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
   },
   card: {
     backgroundColor: '#FFFFFF',

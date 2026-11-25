@@ -18,6 +18,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../../context/AuthContext';
 import { ROLES } from '../../constants/roles';
+import { isValidEmail } from '../../services/authService';
 
 export default function RegisterScreen({ navigation }) {
   const theme = useTheme();
@@ -27,29 +28,60 @@ export default function RegisterScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState(ROLES.SEEKER);
+  const [initialMode, setInitialMode] = useState(ROLES.SEEKER);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleRegister = async () => {
-    if (!name || !email || !password) {
-      setError('Semua kolom wajib diisi.');
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim().toLowerCase();
+
+    if (!trimmedName) {
+      setError('Nama lengkap wajib diisi.');
       return;
     }
+
+    if (!trimmedEmail) {
+      setError('Alamat email wajib diisi.');
+      return;
+    }
+
+    if (!isValidEmail(trimmedEmail)) {
+      setError('Format email tidak valid. Masukkan alamat email yang benar (contoh: user@domain.com).');
+      return;
+    }
+
+    if (!password) {
+      setError('Kata sandi wajib diisi.');
+      return;
+    }
+
     if (password.length < 6) {
-      setError('Password minimal 6 karakter.');
+      setError('Password minimal harus terdiri dari 6 karakter.');
       return;
     }
+
+    if (!confirmPassword) {
+      setError('Harap konfirmasi password Anda.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Konfirmasi password tidak cocok.');
       return;
     }
+
     setError('');
     setLoading(true);
     try {
-      await register({ email, password, name, role });
+      await register({
+        email: trimmedEmail,
+        password,
+        name: trimmedName,
+        initialMode,
+      });
     } catch (err) {
-      setError('Gagal mendaftar. Coba lagi.');
+      setError(err.message || 'Gagal mendaftar. Silakan coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -72,46 +104,54 @@ export default function RegisterScreen({ navigation }) {
           />
           <Text style={styles.title}>Buat Akun HuniHub</Text>
           <Text style={styles.subtitle}>
-            Find, Choose, Stay • Temukan atau sewakan hunian terbaik.
+            Satu akun untuk semua kebutuhan — jelajahi hunian atau pasarkan properti Anda.
           </Text>
         </View>
 
-        {/* Role Selector */}
-        <Text style={styles.roleTitle}>Daftar Sebagai:</Text>
+        {/* Multi-role info banner */}
+        <View style={styles.multiRoleBanner}>
+          <MaterialCommunityIcons name="shield-account" size={20} color="#0D9488" />
+          <Text style={styles.multiRoleBannerText}>
+            Akun Multi-Role: Anda dapat beralih antara Mode Pencari dan Mode Pemilik kapan saja tanpa perlu mendaftar ulang.
+          </Text>
+        </View>
+
+        {/* Initial Mode Preference */}
+        <Text style={styles.roleTitle}>Mulai Dengan Mode:</Text>
         <View style={styles.roleRow}>
           <Pressable
-            onPress={() => setRole(ROLES.SEEKER)}
-            style={[styles.roleCard, role === ROLES.SEEKER && styles.roleCardActive]}
+            onPress={() => setInitialMode(ROLES.SEEKER)}
+            style={[styles.roleCard, initialMode === ROLES.SEEKER && styles.roleCardActive]}
           >
             <MaterialCommunityIcons
               name="account-search-outline"
               size={22}
-              color={role === ROLES.SEEKER ? '#0D9488' : '#64748B'}
+              color={initialMode === ROLES.SEEKER ? '#0D9488' : '#64748B'}
             />
             <Text
               style={[
                 styles.roleCardTitle,
-                role === ROLES.SEEKER && styles.roleCardTitleActive,
+                initialMode === ROLES.SEEKER && styles.roleCardTitleActive,
               ]}
             >
               Pencari Hunian
             </Text>
-            <Text style={styles.roleCardDesc}>Sewa homestay / kost</Text>
+            <Text style={styles.roleCardDesc}>Sewa kost / homestay</Text>
           </Pressable>
 
           <Pressable
-            onPress={() => setRole(ROLES.OWNER)}
-            style={[styles.roleCard, role === ROLES.OWNER && styles.roleCardActive]}
+            onPress={() => setInitialMode(ROLES.OWNER)}
+            style={[styles.roleCard, initialMode === ROLES.OWNER && styles.roleCardActive]}
           >
             <MaterialCommunityIcons
               name="home-city-outline"
               size={22}
-              color={role === ROLES.OWNER ? '#0D9488' : '#64748B'}
+              color={initialMode === ROLES.OWNER ? '#0D9488' : '#64748B'}
             />
             <Text
               style={[
                 styles.roleCardTitle,
-                role === ROLES.OWNER && styles.roleCardTitleActive,
+                initialMode === ROLES.OWNER && styles.roleCardTitleActive,
               ]}
             >
               Pemilik Hunian
@@ -120,13 +160,16 @@ export default function RegisterScreen({ navigation }) {
           </Pressable>
         </View>
 
-        {/* Inputs */}
+        {/* Form Inputs */}
         <View style={styles.formContainer}>
           <TextInput
             label="Nama Lengkap"
-            placeholder="Alya Putri"
+            placeholder="cth: Muhammad Fikri"
             value={name}
-            onChangeText={setName}
+            onChangeText={(text) => {
+              setName(text);
+              if (error) setError('');
+            }}
             mode="outlined"
             outlineColor="#E2E8F0"
             activeOutlineColor="#0D9488"
@@ -138,7 +181,10 @@ export default function RegisterScreen({ navigation }) {
             label="Email"
             placeholder="nama@email.com"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (error) setError('');
+            }}
             keyboardType="email-address"
             autoCapitalize="none"
             mode="outlined"
@@ -152,7 +198,10 @@ export default function RegisterScreen({ navigation }) {
             label="Password"
             placeholder="Minimal 6 karakter"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (error) setError('');
+            }}
             secureTextEntry={!showPassword}
             mode="outlined"
             outlineColor="#E2E8F0"
@@ -172,7 +221,10 @@ export default function RegisterScreen({ navigation }) {
             label="Konfirmasi Password"
             placeholder="Ulangi kata sandi"
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              if (error) setError('');
+            }}
             secureTextEntry={!showPassword}
             mode="outlined"
             outlineColor="#E2E8F0"
@@ -193,10 +245,12 @@ export default function RegisterScreen({ navigation }) {
             textColor="#FFFFFF"
             onPress={handleRegister}
             loading={loading}
+            disabled={loading}
             style={styles.registerBtn}
+            contentStyle={{ height: 48 }}
             labelStyle={styles.btnLabel}
           >
-            Daftar Sekarang
+            Daftar Akun HuniHub
           </Button>
 
           <Button
@@ -222,19 +276,20 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
+    paddingBottom: 40,
   },
   header: {
-    marginBottom: 20,
+    marginBottom: 16,
     alignItems: 'center',
   },
   logoImage: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
+    width: 68,
+    height: 68,
+    borderRadius: 16,
     marginBottom: 8,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
     color: '#0F172A',
     letterSpacing: -0.4,
@@ -244,9 +299,29 @@ const styles = StyleSheet.create({
     color: '#64748B',
     textAlign: 'center',
     marginTop: 4,
+    lineHeight: 18,
+    paddingHorizontal: 8,
+  },
+  multiRoleBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDFA',
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 16,
+    gap: 10,
+  },
+  multiRoleBannerText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#0F766E',
+    lineHeight: 16,
+    fontWeight: '500',
   },
   roleTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#0F172A',
     marginBottom: 8,
@@ -293,11 +368,11 @@ const styles = StyleSheet.create({
   },
   helperText: {
     marginTop: -4,
+    fontSize: 12,
   },
   registerBtn: {
     borderRadius: 14,
     marginTop: 6,
-    paddingVertical: 2,
   },
   btnLabel: {
     fontSize: 15,

@@ -15,7 +15,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import EmptyState from '../../components/EmptyState';
 import { getListingsByOwner, deleteListing } from '../../services/listingService';
 import { formatRupiah } from '../../utils/formatters';
-import { LISTING_TYPES } from '../../constants/listing';
+import { LISTING_TYPES, AVAILABILITY_STATUS } from '../../constants/listing';
 import { useAuth } from '../../context/AuthContext';
 
 export default function ManageListingsScreen({ navigation }) {
@@ -25,10 +25,18 @@ export default function ManageListingsScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [target, setTarget] = useState(null);
   const [snackbar, setSnackbar] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
+    if (!user?.uid) {
+      setListings([]);
+      setLoading(false);
+      return;
+    }
     try {
-      setListings(await getListingsByOwner(user?.uid || 'o1'));
+      setListings(await getListingsByOwner(user.uid));
+    } catch (err) {
+      setListings([]);
     } finally {
       setLoading(false);
     }
@@ -42,20 +50,30 @@ export default function ManageListingsScreen({ navigation }) {
 
   const handleDelete = async () => {
     if (!target) return;
-    const deletedTitle = target.title;
-    await deleteListing(target.id);
-    setSnackbar(`"${deletedTitle}" berhasil dihapus.`);
-    setTarget(null);
-    await load();
+    setDeleting(true);
+    try {
+      const deletedTitle = target.title;
+      await deleteListing(target.id, user?.uid);
+      setSnackbar(`"${deletedTitle}" berhasil dihapus.`);
+      setTarget(null);
+      await load();
+    } catch (err) {
+      setSnackbar(err.message || 'Gagal menghapus hunian.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
-  const keyExtractor = useCallback((item) => item.id, []);
+  const keyExtractor = useCallback((item) => String(item.id), []);
 
   const renderItem = useCallback(
     ({ item }) => {
       const typeLabel =
         LISTING_TYPES.find((type) => type.value === item.type)?.label || item.type;
       const thumb = item.images?.[0];
+      const statusText = item.availabilityStatus || (item.available !== false ? AVAILABILITY_STATUS.AVAILABLE : AVAILABILITY_STATUS.UNAVAILABLE);
+      const isAvailable = statusText === AVAILABILITY_STATUS.AVAILABLE;
+      const isRenting = statusText === AVAILABILITY_STATUS.RENTING_PROCESS;
 
       return (
         <View style={styles.card}>
@@ -69,15 +87,44 @@ export default function ManageListingsScreen({ navigation }) {
             )}
 
             <View style={styles.cardDetails}>
-              <View style={styles.typeBadge}>
-                <Text style={styles.typeBadgeText}>{typeLabel}</Text>
+              <View style={styles.badgeRow}>
+                <View style={styles.typeBadge}>
+                  <Text style={styles.typeBadgeText}>{typeLabel}</Text>
+                </View>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    isAvailable
+                      ? styles.statusBadgeAvailable
+                      : isRenting
+                      ? styles.statusBadgeRenting
+                      : styles.statusBadgeUnavailable,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.statusBadgeText,
+                      isAvailable
+                        ? { color: '#15803D' }
+                        : isRenting
+                        ? { color: '#B45309' }
+                        : { color: '#DC2626' },
+                    ]}
+                  >
+                    {statusText}
+                  </Text>
+                </View>
               </View>
+
               <Text style={styles.itemTitle} numberOfLines={1}>
                 {item.title}
               </Text>
               <Text style={styles.itemPrice}>
                 {formatRupiah(item.price)}
-                <Text style={styles.itemMonth}> /bulan</Text>
+                <Text style={styles.itemMonth}>
+                  {' '}
+                  /{item.rentalDuration === 'tahun' ? 'tahun' : item.rentalDuration === 'hari' ? 'hari' : 'bulan'}
+                </Text>
               </Text>
               <Text style={styles.itemLocation} numberOfLines={1}>
                 {item.location}
@@ -125,15 +172,15 @@ export default function ManageListingsScreen({ navigation }) {
         removeClippedSubviews={Platform.OS === 'android'}
         ListEmptyComponent={
           loading ? (
-            <Text style={{ textAlign: 'center', paddingVertical: 32, color: '#64748B' }}>
-              Memuat data hunian...
+            <Text style={{ textAlign: 'center', paddingVertical: 36, color: '#64748B' }}>
+              Memuat data hunian Anda...
             </Text>
           ) : (
             <EmptyState
               icon="office-building-outline"
-              title="Belum ada hunian terdaftar"
-              subtitle="Tekan tombol tambah di bawah untuk memasarkan hunian Anda."
-              actionLabel="Tambah Hunian Baru"
+              title="Anda Belum Memiliki Hunian"
+              subtitle="Mulai daftarkan hunian Anda dan temukan calon penyewa melalui HuniHub."
+              actionLabel="Tambah Hunian"
               onAction={() => navigation.navigate('AddEditListing')}
             />
           )
@@ -162,16 +209,17 @@ export default function ManageListingsScreen({ navigation }) {
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setTarget(null)} textColor="#64748B">
+            <Button onPress={() => setTarget(null)} textColor="#64748B" disabled={deleting}>
               Batal
             </Button>
-            <Button textColor="#EF4444" onPress={handleDelete}>
+            <Button textColor="#EF4444" onPress={handleDelete} loading={deleting} disabled={deleting}>
               Hapus
             </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
-      <Snackbar visible={Boolean(snackbar)} onDismiss={() => setSnackbar('')}>
+
+      <Snackbar visible={Boolean(snackbar)} onDismiss={() => setSnackbar('')} duration={3000}>
         {snackbar}
       </Snackbar>
     </View>
@@ -185,7 +233,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 16,
-    paddingBottom: 96,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 96,
   },
   card: {
     backgroundColor: '#FFFFFF',
@@ -200,8 +248,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   thumbnail: {
-    width: 84,
-    height: 84,
+    width: 88,
+    height: 88,
     borderRadius: 12,
     backgroundColor: '#F1F5F9',
   },
@@ -213,19 +261,46 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
   typeBadge: {
     alignSelf: 'flex-start',
     backgroundColor: '#F0FDFA',
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
-    marginBottom: 4,
   },
   typeBadgeText: {
     fontSize: 10,
     fontWeight: '700',
     color: '#0D9488',
     textTransform: 'uppercase',
+  },
+  statusBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  statusBadgeAvailable: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#DCFCE7',
+  },
+  statusBadgeRenting: {
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FEF3C7',
+  },
+  statusBadgeUnavailable: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+  },
+  statusBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
   },
   itemTitle: {
     fontSize: 15,
@@ -264,7 +339,7 @@ const styles = StyleSheet.create({
   fab: {
     position: 'absolute',
     right: 18,
-    bottom: 24,
+    bottom: Platform.OS === 'ios' ? 84 : 76,
     backgroundColor: '#0D9488',
     borderRadius: 16,
   },

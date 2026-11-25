@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/storage.js';
 import {
   getFirestore,
   collection,
@@ -10,18 +10,19 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { app, FIREBASE_ENABLED } from '../config/firebase';
-import { RENTAL_STATUS } from '../constants/listing';
-import { pushNotification } from './notificationService';
+import { app, FIREBASE_ENABLED } from '../config/firebase.js';
+import { RENTAL_STATUS, AVAILABILITY_STATUS } from '../constants/listing.js';
+import { pushNotification } from './notificationService.js';
+import { getListingById } from './listingService.js';
 
 export const REQUESTS_KEY = 'hunihub_requests';
 const REQUESTS_COLLECTION = 'rentalRequests';
 
-function generateMockRequestId() {
-  return 'req-' + Date.now();
+function generateRequestId() {
+  return 'req-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
 }
 
-async function getMockRequests() {
+async function getStoredRequests() {
   const raw = await AsyncStorage.getItem(REQUESTS_KEY);
   if (!raw) {
     const initialSeed = [
@@ -65,16 +66,16 @@ async function getMockRequests() {
   }
 }
 
-async function persistMockRequests(requests) {
+async function persistRequests(requests) {
   await AsyncStorage.setItem(REQUESTS_KEY, JSON.stringify(requests));
 }
 
 export async function checkDuplicateRequest(seekerId, listingId) {
-  const requests = await getMockRequests();
-  const targetSeekerId = seekerId || 'u1';
+  if (!seekerId || !listingId) return false;
+  const requests = await getStoredRequests();
   return requests.some(
     (item) =>
-      (item.seekerId === targetSeekerId || (targetSeekerId === 'u1' && item.seekerId === 'u1')) &&
+      String(item.seekerId) === String(seekerId) &&
       String(item.listingId) === String(listingId) &&
       item.status === RENTAL_STATUS.PENDING
   );
@@ -84,27 +85,57 @@ export async function createRentalRequest({
   listingId,
   seekerId,
   seekerName,
-  ownerId,
-  listingTitle,
   startDate,
   endDate,
   durationDays,
   totalPrice,
 }) {
-  const targetOwnerId = ownerId || 'o1';
-  const targetSeekerId = seekerId || 'u1';
+  if (!seekerId) {
+    throw new Error('Anda harus masuk sebagai penyewa untuk mengajukan sewa.');
+  }
+
+  if (!listingId) {
+    throw new Error('ID hunian tidak valid.');
+  }
+
+  // Verify listing exists and is available
+  const listing = await getListingById(listingId);
+  if (!listing) {
+    throw new Error('Hunian yang diajukan tidak ditemukan.');
+  }
+
+  // Prevent owner from renting own property
+  if (String(listing.ownerId) === String(seekerId)) {
+    throw new Error('Anda adalah pemilik hunian ini. Tidak dapat mengajukan sewa pada properti sendiri.');
+  }
+
+  // Check availability status
+  if (
+    (listing.availabilityStatus && listing.availabilityStatus !== AVAILABILITY_STATUS.AVAILABLE) ||
+    listing.available === false
+  ) {
+    throw new Error('Hunian ini sedang tidak tersedia untuk pengajuan sewa baru.');
+  }
+
+  // Check duplicate pending request
+  const isDuplicate = await checkDuplicateRequest(seekerId, listingId);
+  if (isDuplicate) {
+    throw new Error('Anda sudah memiliki pengajuan sewa yang sedang menunggu konfirmasi untuk hunian ini.');
+  }
+
+  const targetOwnerId = listing.ownerId || 'o1';
 
   const request = {
-    id: FIREBASE_ENABLED ? null : generateMockRequestId(),
+    id: generateRequestId(),
     listingId,
-    seekerId: targetSeekerId,
+    seekerId,
     seekerName: seekerName || 'Penyewa',
     ownerId: targetOwnerId,
-    listingTitle,
+    listingTitle: listing.title,
     startDate,
     endDate,
     durationDays,
-    totalPrice,
+    totalPrice: Number(totalPrice) || 0,
     status: RENTAL_STATUS.PENDING,
     createdAt: new Date().toISOString(),
   };
@@ -119,26 +150,26 @@ export async function createRentalRequest({
     }
   }
 
-  const requests = await getMockRequests();
+  const requests = await getStoredRequests();
   requests.unshift(request);
-  await persistMockRequests(requests);
+  await persistRequests(requests);
 
-  // Send transactional notifications to both owner and seeker
+  // Send notifications
   try {
-    // Notification to owner
+    // To owner
     await pushNotification({
       userId: targetOwnerId,
       title: 'Permintaan Sewa Baru 📋',
-      body: `Ada pengajuan sewa baru untuk "${listingTitle}" dari ${seekerName || 'Penyewa'}. Segera periksa di tab Permintaan.`,
+      body: `Ada pengajuan sewa baru untuk "${listing.title}" dari ${seekerName || 'Penyewa'}. Segera periksa di tab Permintaan.`,
       createdAt: new Date().toISOString(),
       action: 'go_to_requests',
     });
 
-    // Confirmation notification to seeker
+    // To seeker
     await pushNotification({
-      userId: targetSeekerId,
+      userId: seekerId,
       title: 'Pengajuan Sewa Terkirim 🚀',
-      body: `Permintaan sewa untuk "${listingTitle}" berhasil dikirim. Menunggu konfirmasi pemilik hunian.`,
+      body: `Permintaan sewa untuk "${listing.title}" berhasil dikirim. Menunggu konfirmasi pemilik hunian.`,
       createdAt: new Date().toISOString(),
       action: 'go_to_history',
     });
@@ -149,7 +180,12 @@ export async function createRentalRequest({
   return request;
 }
 
+/**
+ * Strict seeker requests retrieval - Only returns applications submitted by this authenticated seeker
+ */
 export async function getRequestsBySeeker(seekerId) {
+  if (!seekerId) return [];
+
   if (FIREBASE_ENABLED) {
     try {
       const db = getFirestore(app);
@@ -159,18 +195,22 @@ export async function getRequestsBySeeker(seekerId) {
       if (snapshot.docs.length > 0) {
         return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
       }
+      return [];
     } catch (err) {
       console.warn('Gagal membaca permintaan sewa seeker dari Firestore, beralih ke lokal:', err.message);
     }
   }
-  const requests = await getMockRequests();
-  if (!seekerId) return requests;
-  return requests.filter(
-    (item) => item.seekerId === seekerId || item.seekerId === 'u1' || item.seekerId === 'u2'
-  );
+
+  const requests = await getStoredRequests();
+  return requests.filter((item) => String(item.seekerId) === String(seekerId));
 }
 
+/**
+ * Strict owner requests retrieval - Only returns applications for properties owned by this authenticated owner
+ */
 export async function getRequestsByOwner(ownerId) {
+  if (!ownerId) return [];
+
   if (FIREBASE_ENABLED) {
     try {
       const db = getFirestore(app);
@@ -180,18 +220,37 @@ export async function getRequestsByOwner(ownerId) {
       if (snapshot.docs.length > 0) {
         return snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
       }
+      return [];
     } catch (err) {
       console.warn('Gagal membaca permintaan sewa owner dari Firestore, beralih ke lokal:', err.message);
     }
   }
-  const requests = await getMockRequests();
-  if (!ownerId) return requests;
-  return requests.filter(
-    (item) => item.ownerId === ownerId || item.ownerId === 'o1' || ownerId === 'o1' || !item.ownerId
-  );
+
+  const requests = await getStoredRequests();
+  return requests.filter((item) => String(item.ownerId) === String(ownerId));
 }
 
-export async function updateRequestStatus(id, status) {
+export async function updateRequestStatus(id, status, currentUserId) {
+  const requests = await getStoredRequests();
+  const existing = requests.find((item) => String(item.id) === String(id));
+
+  if (!existing) {
+    throw new Error('Permintaan sewa tidak ditemukan.');
+  }
+
+  // Authorization check
+  if (currentUserId) {
+    if (status === RENTAL_STATUS.CANCELED && String(existing.seekerId) !== String(currentUserId)) {
+      throw new Error('Akses ditolak: Hanya pemohon sewa yang dapat membatalkan pengajuan ini.');
+    }
+    if (
+      (status === RENTAL_STATUS.ACCEPTED || status === RENTAL_STATUS.REJECTED || status === RENTAL_STATUS.COMPLETED) &&
+      String(existing.ownerId) !== String(currentUserId)
+    ) {
+      throw new Error('Akses ditolak: Hanya pemilik hunian yang berwenang mengubah status pengajuan ini.');
+    }
+  }
+
   if (FIREBASE_ENABLED) {
     try {
       const db = getFirestore(app);
@@ -200,18 +259,18 @@ export async function updateRequestStatus(id, status) {
       console.warn('Gagal update status permintaan di Firestore, update ke lokal:', err.message);
     }
   }
-  const requests = await getMockRequests();
+
   let targetRequest = null;
   const updated = requests.map((item) => {
-    if (item.id === id) {
+    if (String(item.id) === String(id)) {
       targetRequest = { ...item, status };
       return targetRequest;
     }
     return item;
   });
-  await persistMockRequests(updated);
+  await persistRequests(updated);
 
-  // Send notification to seeker regarding the decision
+  // Send status update notification to seeker
   if (targetRequest && targetRequest.seekerId) {
     try {
       if (status === RENTAL_STATUS.ACCEPTED) {
@@ -247,8 +306,8 @@ export async function updateRequestStatus(id, status) {
   return { id, status };
 }
 
-export async function cancelRequest(id) {
-  return updateRequestStatus(id, RENTAL_STATUS.CANCELED);
+export async function cancelRequest(id, seekerId) {
+  return updateRequestStatus(id, RENTAL_STATUS.CANCELED, seekerId);
 }
 
 export async function getRequestById(id) {
@@ -263,6 +322,6 @@ export async function getRequestById(id) {
       console.warn('Gagal membaca getRequestById dari Firestore, beralih ke lokal:', err.message);
     }
   }
-  const requests = await getMockRequests();
-  return requests.find((item) => item.id === id) || null;
+  const requests = await getStoredRequests();
+  return requests.find((item) => String(item.id) === String(id)) || null;
 }

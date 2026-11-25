@@ -3,7 +3,7 @@ import { View, StyleSheet, Image, Platform } from 'react-native';
 import { Text, TouchableRipple, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { formatRupiah, formatDistance } from '../utils/formatters';
-import { LISTING_TYPES } from '../constants/listing';
+import { LISTING_TYPES, AVAILABILITY_STATUS } from '../constants/listing';
 
 function ListingCardComponent({ listing, onPress }) {
   const theme = useTheme();
@@ -11,6 +11,10 @@ function ListingCardComponent({ listing, onPress }) {
     LISTING_TYPES.find((item) => item.value === listing.type)?.label || listing.type;
 
   const imageUri = listing.images?.[0];
+  const status = listing.availabilityStatus || (listing.available !== false ? AVAILABILITY_STATUS.AVAILABLE : AVAILABILITY_STATUS.UNAVAILABLE);
+  const isAvailable = status === AVAILABILITY_STATUS.AVAILABLE;
+  const isRenting = status === AVAILABILITY_STATUS.RENTING_PROCESS;
+  const durationUnit = listing.rentalDuration === 'tahun' ? 'tahun' : listing.rentalDuration === 'hari' ? 'hari' : 'bulan';
 
   return (
     <View style={styles.cardWrapper}>
@@ -42,6 +46,20 @@ function ListingCardComponent({ listing, onPress }) {
             <View style={styles.floatingTypeBadge}>
               <Text style={styles.floatingTypeBadgeText}>{typeLabel}</Text>
             </View>
+
+            {/* Floating Status Badge (if not Available) */}
+            {!isAvailable && (
+              <View
+                style={[
+                  styles.floatingStatusBadge,
+                  isRenting ? styles.floatingStatusRenting : styles.floatingStatusUnavailable,
+                ]}
+              >
+                <Text style={styles.floatingStatusText}>
+                  {isRenting ? 'Dalam Proses' : 'Tidak Tersedia'}
+                </Text>
+              </View>
+            )}
 
             {/* Floating Rating Pill (Top Right) */}
             {listing.rating ? (
@@ -78,7 +96,7 @@ function ListingCardComponent({ listing, onPress }) {
             <View style={styles.bottomRow}>
               <View style={styles.priceContainer}>
                 <Text style={styles.priceText}>{formatRupiah(listing.price)}</Text>
-                <Text style={styles.perMonthText}> /bulan</Text>
+                <Text style={styles.perMonthText}> /{durationUnit}</Text>
               </View>
 
               {listing.distanceKm !== undefined && (
@@ -168,6 +186,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  floatingStatusBadge: {
+    position: 'absolute',
+    bottom: 10,
+    left: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  floatingStatusRenting: {
+    backgroundColor: 'rgba(217, 119, 6, 0.92)',
+  },
+  floatingStatusUnavailable: {
+    backgroundColor: 'rgba(220, 38, 38, 0.92)',
+  },
+  floatingStatusText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   floatingRatingPill: {
     position: 'absolute',

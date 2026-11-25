@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import * as authService from '../services/authService';
+import { ROLES } from '../constants/roles';
 
 const AuthContext = createContext(null);
 
@@ -15,19 +16,28 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
+  const switchMode = useCallback(async (newMode) => {
+    if (!user) return null;
+    const target = newMode || (user.activeMode === ROLES.OWNER ? ROLES.SEEKER : ROLES.OWNER);
+    const updated = await authService.switchMode(user, target);
+    setUser(updated);
+    return updated;
+  }, [user]);
+
   const value = useMemo(
     () => ({
       user,
       loading,
+      activeMode: user?.activeMode || user?.role || ROLES.SEEKER,
+      switchMode,
       signIn: async (payload) => setUser(await authService.loginWithEmail(payload)),
       register: async (payload) => setUser(await authService.registerWithEmail(payload)),
-      signInWithGoogle: async (role) => setUser(await authService.loginWithGoogle(role)),
       signOut: async () => {
         await authService.logout();
         setUser(null);
       },
     }),
-    [user, loading]
+    [user, loading, switchMode]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

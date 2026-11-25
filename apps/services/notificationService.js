@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/storage.js';
 
 export const NOTIFICATIONS_KEY = 'hunihub_notifications';
 

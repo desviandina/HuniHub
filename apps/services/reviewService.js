@@ -1,7 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/storage.js';
 import { getFirestore, collection, getDocs, getDoc, doc, addDoc, query, orderBy } from 'firebase/firestore';
-import { app, FIREBASE_ENABLED } from '../config/firebase';
-import { mockReviews } from './mockData';
+import { app, FIREBASE_ENABLED } from '../config/firebase.js';
+import { mockReviews } from './mockData.js';
 
 export const REVIEWS_KEY = 'hunihub_reviews';
 const REVIEWS_COLLECTION = 'reviews';

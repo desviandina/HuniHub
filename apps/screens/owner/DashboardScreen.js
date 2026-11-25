@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { FlatList, View, StyleSheet, RefreshControl, Platform, Pressable } from 'react-native';
-import { Text, Button, useTheme } from 'react-native-paper';
+import { Text, Button, useTheme, Chip } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import ListingCard from '../../components/ListingCard';
@@ -9,10 +9,11 @@ import { getListingsByOwner } from '../../services/listingService';
 import { getRequestsByOwner } from '../../services/rentalService';
 import { useAuth } from '../../context/AuthContext';
 import { RENTAL_STATUS } from '../../constants/listing';
+import { ROLES } from '../../constants/roles';
 
 export default function DashboardScreen({ navigation }) {
   const theme = useTheme();
-  const { user } = useAuth();
+  const { user, switchMode } = useAuth();
   const [listings, setListings] = useState([]);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,10 +22,17 @@ export default function DashboardScreen({ navigation }) {
   const load = useCallback(
     async (isPullToRefresh = false) => {
       if (!isPullToRefresh) setLoading(true);
+      if (!user?.uid) {
+        setListings([]);
+        setRequests([]);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
       try {
         const [listingData, requestData] = await Promise.all([
-          getListingsByOwner(user?.uid || 'o1'),
-          getRequestsByOwner(user?.uid || 'o1'),
+          getListingsByOwner(user.uid),
+          getRequestsByOwner(user.uid),
         ]);
         setListings(listingData);
         setRequests(requestData);
@@ -94,9 +102,20 @@ export default function DashboardScreen({ navigation }) {
         ListHeaderComponent={
           <View style={styles.header}>
             <View style={styles.welcomeBanner}>
-              <View>
-                <Text style={styles.subGreeting}>Dashboard Pemilik</Text>
-                <Text style={styles.greeting}>Halo, {user?.name || 'Mitra'}</Text>
+              <View style={{ flex: 1 }}>
+                <View style={styles.modeTagRow}>
+                  <Text style={styles.subGreeting}>Dashboard Pemilik Hunian</Text>
+                  <Pressable
+                    style={styles.switchModePill}
+                    onPress={() => switchMode(ROLES.SEEKER)}
+                  >
+                    <MaterialCommunityIcons name="swap-horizontal" size={12} color="#0D9488" />
+                    <Text style={styles.switchModePillText}>Mode Pencari</Text>
+                  </Pressable>
+                </View>
+                <Text style={styles.greeting} numberOfLines={1}>
+                  Halo, {user?.name || 'Mitra'}
+                </Text>
               </View>
               <Button
                 mode="contained"
@@ -148,15 +167,15 @@ export default function DashboardScreen({ navigation }) {
         }
         ListEmptyComponent={
           loading ? (
-            <Text style={{ textAlign: 'center', paddingVertical: 32, color: '#64748B' }}>
-              Memuat data hunian...
+            <Text style={{ textAlign: 'center', paddingVertical: 36, color: '#64748B' }}>
+              Memuat data hunian Anda...
             </Text>
           ) : (
             <EmptyState
               icon="office-building-outline"
-              title="Belum ada hunian terdaftar"
-              subtitle="Unggah hunian pertama Anda untuk mulai menerima calon penyewa."
-              actionLabel="Tambah Hunian Sekarang"
+              title="Anda Belum Memiliki Hunian"
+              subtitle="Mulai daftarkan hunian Anda dan temukan calon penyewa melalui HuniHub."
+              actionLabel="Tambah Hunian"
               onAction={() => navigation.navigate('AddEditListing')}
             />
           )
@@ -173,30 +192,52 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
-    paddingBottom: 24,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
   },
   header: {
-    paddingTop: 12,
-    paddingBottom: 4,
+    marginBottom: 12,
   },
   welcomeBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
+    paddingVertical: 4,
+  },
+  modeTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 2,
   },
   subGreeting: {
     fontSize: 12,
-    color: '#64748B',
+    fontWeight: '700',
+    color: '#0D9488',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    fontWeight: '600',
+  },
+  switchModePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+  },
+  switchModePillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0D9488',
   },
   greeting: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '800',
     color: '#0F172A',
-    letterSpacing: -0.3,
   },
   addButton: {
     borderRadius: 12,
@@ -208,42 +249,45 @@ const styles = StyleSheet.create({
   },
   statBox: {
     flex: 1,
-    paddingVertical: 14,
-    paddingHorizontal: 10,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
     marginTop: 4,
   },
   statLabel: {
     fontSize: 11,
+    fontWeight: '600',
     color: '#64748B',
-    fontWeight: '500',
     marginTop: 2,
   },
   sectionHeadingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
+    paddingHorizontal: 2,
   },
   sectionHeading: {
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: '#0F172A',
   },
   countBadge: {
     fontSize: 12,
+    fontWeight: '700',
     color: '#0D9488',
-    fontWeight: '600',
     backgroundColor: '#F0FDFA',
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CCFBF1',
   },
 });

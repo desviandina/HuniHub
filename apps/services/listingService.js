@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import AsyncStorage from '../utils/storage.js';
 import {
   getFirestore,
   collection,
@@ -11,13 +11,20 @@ import {
   query,
   where,
 } from 'firebase/firestore';
-import { app, FIREBASE_ENABLED } from '../config/firebase';
-import { mockListings, mockOwners } from './mockData';
+import { app, FIREBASE_ENABLED } from '../config/firebase.js';
+import { mockListings, mockOwners } from './mockData.js';
+import { PROPERTY_CATEGORIES, AVAILABILITY_STATUS } from '../constants/listing.js';
 
 export const LISTINGS_STORAGE_KEY = 'hunihub_listings';
 export const STORAGE_VERSION_KEY = 'hunihub_listings_version';
-export const CURRENT_VERSION = '2.0-aceh-barat';
+export const CURRENT_VERSION = '3.0-multirole-aceh-barat';
 const LISTINGS_COLLECTION = 'listings';
+
+const ALLOWED_CATEGORIES = [
+  PROPERTY_CATEGORIES.KOST,
+  PROPERTY_CATEGORIES.HOMESTAY,
+  PROPERTY_CATEGORIES.SEWA_RUMAH,
+];
 
 export async function getListingsFromStorage() {
   try {
@@ -26,9 +33,14 @@ export async function getListingsFromStorage() {
 
     // If version is outdated or storage empty, seed fresh Aceh Barat data
     if (version !== CURRENT_VERSION || !raw) {
-      await AsyncStorage.setItem(LISTINGS_STORAGE_KEY, JSON.stringify(mockListings));
+      const normalizedMock = mockListings.map((item) => ({
+        ...item,
+        availabilityStatus: item.availabilityStatus || (item.available !== false ? AVAILABILITY_STATUS.AVAILABLE : AVAILABILITY_STATUS.UNAVAILABLE),
+        rentalDuration: item.rentalDuration || 'bulan',
+      }));
+      await AsyncStorage.setItem(LISTINGS_STORAGE_KEY, JSON.stringify(normalizedMock));
       await AsyncStorage.setItem(STORAGE_VERSION_KEY, CURRENT_VERSION);
-      return mockListings;
+      return normalizedMock;
     }
 
     const parsed = JSON.parse(raw);
@@ -137,7 +149,12 @@ export async function getListingById(id) {
   return found ? attachOwnerName(found) : null;
 }
 
+/**
+ * Strict owner property retrieval - Never display another owner's properties
+ */
 export async function getListingsByOwner(ownerId) {
+  if (!ownerId) return [];
+
   if (FIREBASE_ENABLED) {
     try {
       const db = getFirestore(app);
@@ -147,30 +164,38 @@ export async function getListingsByOwner(ownerId) {
       if (snapshot.docs.length > 0) {
         return snapshot.docs.map((item) => attachOwnerName({ id: item.id, ...item.data() }));
       }
+      return [];
     } catch (err) {
       console.warn('Gagal membaca Firestore getListingsByOwner:', err.message);
     }
   }
 
   const localListings = await getListingsFromStorage();
-  const owned = localListings.filter((item) => item.ownerId === ownerId).map(attachOwnerName);
-  if (owned.length > 0) return owned;
-  if (ownerId === 'o1' || !localListings.some((item) => item.ownerId === ownerId)) {
-    return localListings
-      .filter((item) => item.ownerId === 'o1' || item.ownerId === ownerId)
-      .map(attachOwnerName);
-  }
+  const owned = localListings.filter((item) => String(item.ownerId) === String(ownerId)).map(attachOwnerName);
   return owned;
 }
 
 export async function createListing(data) {
+  if (!data.title?.trim() || !data.price) {
+    throw new Error('Nama hunian dan harga sewa wajib diisi.');
+  }
+
+  const normalizedCategory = data.type || PROPERTY_CATEGORIES.HOMESTAY;
+  if (!ALLOWED_CATEGORIES.includes(normalizedCategory)) {
+    throw new Error(`Kategori hunian tidak valid. Hanya mendukung: Kost, Homestay, atau Sewa Rumah.`);
+  }
+
+  const availabilityStatus = data.availabilityStatus || AVAILABILITY_STATUS.AVAILABLE;
+  const isAvailable = availabilityStatus === AVAILABILITY_STATUS.AVAILABLE;
+
   const newListing = {
     id: 'l-' + Date.now(),
-    title: data.title || 'Hunian Baru Meulaboh',
-    type: data.type || 'homestay',
+    title: data.title.trim(),
+    type: normalizedCategory,
     price: Number(data.price) || 0,
-    location: data.location || 'Johan Pahlawan, Meulaboh, Aceh Barat',
-    description: data.description || '',
+    rentalDuration: data.rentalDuration || 'bulan',
+    location: data.location?.trim() || 'Johan Pahlawan, Meulaboh, Aceh Barat',
+    description: data.description?.trim() || '',
     facilities: data.facilities || [],
     nearbyPlaces: data.nearbyPlaces || [],
     images:
@@ -179,16 +204,21 @@ export async function createListing(data) {
         : [
             'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&w=800&q=80',
           ],
-    ownerId: data.ownerId || 'o1',
-    ownerName: data.ownerName || 'Pak Rudi',
+    ownerId: data.ownerId,
+    ownerName: data.ownerName || 'Pemilik Hunian',
     lat: data.lat !== undefined ? Number(data.lat) : 4.1440,
     lng: data.lng !== undefined ? Number(data.lng) : 96.1280,
     distanceKm: data.distanceKm !== undefined ? Number(data.distanceKm) : 0.8,
     rating: 5.0,
     reviewCount: 0,
-    available: true,
+    available: isAvailable,
+    availabilityStatus: availabilityStatus,
     createdAt: new Date().toISOString(),
   };
+
+  if (!newListing.ownerId) {
+    throw new Error('User ID pemilik hunian tidak valid.');
+  }
 
   if (FIREBASE_ENABLED) {
     try {
@@ -207,26 +237,58 @@ export async function createListing(data) {
   return newListing;
 }
 
-export async function updateListing(id, data) {
+export async function updateListing(id, data, currentUserId) {
+  const localListings = await getListingsFromStorage();
+  const existing = localListings.find((item) => String(item.id) === String(id));
+
+  if (!existing) {
+    throw new Error('Hunian tidak ditemukan.');
+  }
+
+  // Security Ownership Check
+  if (currentUserId && String(existing.ownerId) !== String(currentUserId)) {
+    throw new Error('Akses ditolak: Anda tidak memiliki izin untuk mengubah hunian milik pengguna lain.');
+  }
+
+  if (data.type && !ALLOWED_CATEGORIES.includes(data.type)) {
+    throw new Error(`Kategori hunian tidak valid. Hanya mendukung: Kost, Homestay, atau Sewa Rumah.`);
+  }
+
+  const updatedData = { ...data };
+  if (data.availabilityStatus) {
+    updatedData.available = data.availabilityStatus === AVAILABILITY_STATUS.AVAILABLE;
+  }
+
   if (FIREBASE_ENABLED) {
     try {
       const db = getFirestore(app);
-      await updateDoc(doc(db, LISTINGS_COLLECTION, id), data);
+      await updateDoc(doc(db, LISTINGS_COLLECTION, id), updatedData);
     } catch (err) {
       console.warn('Gagal update Firestore:', err.message);
     }
   }
 
-  const localListings = await getListingsFromStorage();
   const updatedListings = localListings.map((item) =>
-    String(item.id) === String(id) ? { ...item, ...data } : item
+    String(item.id) === String(id) ? { ...item, ...updatedData } : item
   );
   await saveListingsToStorage(updatedListings);
 
-  return { id, ...data };
+  return { id, ...existing, ...updatedData };
 }
 
-export async function deleteListing(id) {
+export async function deleteListing(id, currentUserId) {
+  const localListings = await getListingsFromStorage();
+  const existing = localListings.find((item) => String(item.id) === String(id));
+
+  if (!existing) {
+    throw new Error('Hunian tidak ditemukan.');
+  }
+
+  // Security Ownership Check
+  if (currentUserId && String(existing.ownerId) !== String(currentUserId)) {
+    throw new Error('Akses ditolak: Anda tidak memiliki izin untuk menghapus hunian milik pengguna lain.');
+  }
+
   if (FIREBASE_ENABLED) {
     try {
       const db = getFirestore(app);
@@ -236,7 +298,6 @@ export async function deleteListing(id) {
     }
   }
 
-  const localListings = await getListingsFromStorage();
   const filtered = localListings.filter((item) => String(item.id) !== String(id));
   await saveListingsToStorage(filtered);
 

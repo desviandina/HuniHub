@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { FlatList, View, StyleSheet, Pressable } from 'react-native';
+import { FlatList, View, StyleSheet, Pressable, Platform } from 'react-native';
 import { Text, useTheme } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -127,7 +127,7 @@ const styles = StyleSheet.create({
   },
   list: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
   },
   card: {
     backgroundColor: '#FFFFFF',

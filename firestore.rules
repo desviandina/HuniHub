@@ -1,18 +1,82 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 12, 4);
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isUser(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Profiles collection:
+    // Anyone authenticated can read user profile summaries (e.g. name of owner)
+    // Only the authenticated user can create or update their own profile document
+    match /profiles/{userId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isUser(userId);
+      allow delete: if false;
+    }
+
+    // Listings collection:
+    // Anyone authenticated can read published listings
+    // Only authenticated users can create listings, associating ownerId with their own UID
+    // Only the listing owner can update or delete their listing
+    match /listings/{listingId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    request.resource.data.ownerId == request.auth.uid &&
+                    request.resource.data.type in ['kost', 'homestay', 'rumah'] &&
+                    request.resource.data.price is number &&
+                    request.resource.data.price > 0;
+      allow update: if isAuthenticated() &&
+                    resource.data.ownerId == request.auth.uid &&
+                    request.resource.data.ownerId == resource.data.ownerId &&
+                    (request.resource.data.type in ['kost', 'homestay', 'rumah']);
+      allow delete: if isAuthenticated() &&
+                    resource.data.ownerId == request.auth.uid;
+    }
+
+    // Rental Requests collection:
+    // Seekers can create a request with their own seekerId and cannot apply to their own property
+    // Seekers can read their own submitted requests
+    // Owners can read and update (accept/reject/complete) requests for properties they own
+    match /rentalRequests/{requestId} {
+      allow create: if isAuthenticated() &&
+                    request.resource.data.seekerId == request.auth.uid &&
+                    request.resource.data.ownerId != request.auth.uid;
+      allow read: if isAuthenticated() && (
+                    resource.data.seekerId == request.auth.uid ||
+                    resource.data.ownerId == request.auth.uid
+                  );
+      allow update: if isAuthenticated() && (
+                      // Seeker can only cancel their own pending request
+                      (resource.data.seekerId == request.auth.uid && request.resource.data.status == 'canceled') ||
+                      // Owner can accept, reject, or complete request for their listing
+                      (resource.data.ownerId == request.auth.uid && request.resource.data.status in ['accepted', 'rejected', 'completed'])
+                    );
+      allow delete: if false;
+    }
+
+    // Reviews collection:
+    // Anyone authenticated can read reviews
+    // Only authenticated users can write reviews
+    match /reviews/{reviewId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    request.resource.data.reviewerId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Notifications collection:
+    // User can only read and update their own notifications
+    match /notifications/{notificationId} {
+      allow read, update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
     }
   }
 }

@@ -15,12 +15,14 @@ import ListingCard from '../../components/ListingCard';
 import EmptyState from '../../components/EmptyState';
 import { searchListings } from '../../services/listingService';
 import { LISTING_TYPES } from '../../constants/listing';
+import { useAuth } from '../../context/AuthContext';
+import { ROLES } from '../../constants/roles';
 
 const categoryFilters = [
   { value: '', label: 'Semua', icon: 'view-grid-outline' },
-  { value: 'homestay', label: 'Homestay', icon: 'home-heart' },
   { value: 'kost', label: 'Kost', icon: 'bed-outline' },
-  { value: 'rumah', label: 'Rumah', icon: 'home-city-outline' },
+  { value: 'homestay', label: 'Homestay', icon: 'home-heart' },
+  { value: 'rumah', label: 'Sewa Rumah', icon: 'home-city-outline' },
 ];
 
 function SkeletonCard() {
@@ -41,6 +43,7 @@ function SkeletonCard() {
 
 export default function HomeScreen({ navigation }) {
   const theme = useTheme();
+  const { switchMode } = useAuth();
   const [search, setSearch] = useState('');
   const [type, setType] = useState('');
   const [listings, setListings] = useState([]);
@@ -106,12 +109,21 @@ export default function HomeScreen({ navigation }) {
         {/* Top Greeting Section */}
         <View style={styles.greetingSection}>
           <View>
-            <Text style={styles.welcomeSubtext}>Hunian, Kost & Penginapan</Text>
+            <Text style={styles.welcomeSubtext}>Mode Pencari Hunian</Text>
             <Text style={styles.brandTitle}>HuniHub</Text>
           </View>
-          <View style={styles.badgeHub}>
-            <MaterialCommunityIcons name="shield-check" size={16} color="#0D9488" />
-            <Text style={styles.badgeHubText}>Terpercaya</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Pressable
+              style={styles.switchModePill}
+              onPress={() => switchMode(ROLES.OWNER)}
+            >
+              <MaterialCommunityIcons name="home-city" size={14} color="#0D9488" />
+              <Text style={styles.switchModePillText}>Mode Pemilik</Text>
+            </Pressable>
+            <View style={styles.badgeHub}>
+              <MaterialCommunityIcons name="shield-check" size={16} color="#0D9488" />
+              <Text style={styles.badgeHubText}>Terpercaya</Text>
+            </View>
           </View>
         </View>
 
@@ -230,7 +242,23 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: 16,
-    paddingBottom: 32,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
+  },
+  switchModePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F0FDFA',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#99F6E4',
+  },
+  switchModePillText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#0D9488',
   },
   loadingContainer: {
     paddingHorizontal: 16,

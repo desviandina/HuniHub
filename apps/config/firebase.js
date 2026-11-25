@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { FIREBASE_ENABLED, firebaseConfig } from './environment';
+import { FIREBASE_ENABLED, firebaseConfig } from './environment.js';
 
 function getFirebaseApp() {
   if (!FIREBASE_ENABLED) {

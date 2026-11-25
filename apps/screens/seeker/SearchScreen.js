@@ -385,6 +385,6 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: 16,
-    paddingBottom: 24,
+    paddingBottom: Platform.OS === 'ios' ? 100 : 90,
   },
 });

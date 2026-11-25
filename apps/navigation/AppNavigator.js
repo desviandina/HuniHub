@@ -1,3 +1,4 @@
+import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { ROLES } from '../constants/roles';
@@ -10,11 +11,13 @@ import AddEditListingScreen from '../screens/owner/AddEditListingScreen';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
-  const { user } = useAuth();
-  const MainNavigator = user?.role === ROLES.OWNER ? OwnerNavigator : SeekerNavigator;
+  const { activeMode } = useAuth();
+  const isOwner = activeMode === ROLES.OWNER;
+  const MainNavigator = isOwner ? OwnerNavigator : SeekerNavigator;
 
   return (
     <Stack.Navigator
+      key={activeMode} // Re-mount Main stack cleanly when switching mode
       screenOptions={{
         headerTitleAlign: 'center',
         headerTintColor: '#0D9488',

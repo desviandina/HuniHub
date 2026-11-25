@@ -25,7 +25,7 @@ import {
   createListing,
   updateListing,
 } from '../../services/listingService';
-import { LISTING_TYPES } from '../../constants/listing';
+import { LISTING_TYPES, AVAILABILITY_STATUS, RENTAL_DURATIONS } from '../../constants/listing';
 import { useAuth } from '../../context/AuthContext';
 
 const PRESET_IMAGES = [
@@ -96,6 +96,8 @@ export default function AddEditListingScreen({ route, navigation }) {
   const [title, setTitle] = useState('');
   const [type, setType] = useState(LISTING_TYPES[0].value);
   const [price, setPrice] = useState('');
+  const [rentalDuration, setRentalDuration] = useState('bulan');
+  const [availabilityStatus, setAvailabilityStatus] = useState(AVAILABILITY_STATUS.AVAILABLE);
   const [location, setLocation] = useState('');
   const [selectedImage, setSelectedImage] = useState(PRESET_IMAGES[0].url);
   const [customImageUrl, setCustomImageUrl] = useState('');
@@ -125,6 +127,11 @@ export default function AddEditListingScreen({ route, navigation }) {
           setTitle(listing.title || '');
           setType(listing.type || LISTING_TYPES[0].value);
           setPrice(String(listing.price || ''));
+          setRentalDuration(listing.rentalDuration || 'bulan');
+          setAvailabilityStatus(
+            listing.availabilityStatus ||
+              (listing.available !== false ? AVAILABILITY_STATUS.AVAILABLE : AVAILABILITY_STATUS.UNAVAILABLE)
+          );
           setLocation(listing.location || '');
           setDescription(listing.description || '');
           setFacilities(listing.facilities || []);
@@ -218,12 +225,19 @@ export default function AddEditListingScreen({ route, navigation }) {
       return;
     }
 
+    if (!user?.uid) {
+      setError('Sesi autentikasi tidak valid. Silakan masuk kembali.');
+      return;
+    }
+
     const activeImage = customImageUrl.trim() ? customImageUrl.trim() : selectedImage;
 
     const payload = {
       title: title.trim(),
       type,
       price: Number(price),
+      rentalDuration,
+      availabilityStatus,
       location: location.trim(),
       description: description.trim(),
       facilities,
@@ -231,22 +245,22 @@ export default function AddEditListingScreen({ route, navigation }) {
       images: [activeImage],
       lat,
       lng,
-      ownerId: user?.uid || 'o1',
-      ownerName: user?.name || 'Pak Rudi',
+      ownerId: user.uid,
+      ownerName: user.name || 'Pemilik Hunian',
     };
 
     setError('');
     setLoading(true);
     try {
       if (isEdit) {
-        await updateListing(listingId, payload);
+        await updateListing(listingId, payload, user.uid);
       } else {
         await createListing(payload);
       }
-      setSnackbar(isEdit ? 'Hunian berhasil diperbarui!' : 'Hunian berhasil disimpan & dipublikasikan di Aceh Barat!');
+      setSnackbar(isEdit ? 'Hunian berhasil diperbarui!' : 'Hunian berhasil disimpan & dipublikasikan!');
       setTimeout(() => navigation.goBack(), 1200);
     } catch (err) {
-      setError('Gagal menyimpan hunian. Silakan coba lagi.');
+      setError(err.message || 'Gagal menyimpan hunian. Silakan coba lagi.');
     } finally {
       setLoading(false);
     }
@@ -327,7 +341,7 @@ export default function AddEditListingScreen({ route, navigation }) {
           left={<TextInput.Icon icon="home-outline" color="#0D9488" />}
         />
 
-        <Text style={styles.fieldLabel}>Jenis Hunian</Text>
+        <Text style={styles.fieldLabel}>Kategori Hunian (3 Pilihan Utama)</Text>
         <SegmentedButtons
           value={type}
           onValueChange={setType}
@@ -338,8 +352,19 @@ export default function AddEditListingScreen({ route, navigation }) {
           style={styles.segmentedBtn}
         />
 
+        <Text style={styles.fieldLabel}>Jangka Waktu Sewa</Text>
+        <SegmentedButtons
+          value={rentalDuration}
+          onValueChange={setRentalDuration}
+          buttons={RENTAL_DURATIONS.map((item) => ({
+            value: item.value,
+            label: item.label,
+          }))}
+          style={styles.segmentedBtn}
+        />
+
         <TextInput
-          label="Harga Sewa (Rp / bulan)"
+          label={`Harga Sewa (Rp / ${rentalDuration === 'tahun' ? 'tahun' : rentalDuration === 'hari' ? 'hari' : 'bulan'})`}
           placeholder="cth: 650000"
           value={price}
           onChangeText={setPrice}
@@ -349,6 +374,18 @@ export default function AddEditListingScreen({ route, navigation }) {
           activeOutlineColor="#0D9488"
           style={styles.input}
           left={<TextInput.Affix text="Rp " />}
+        />
+
+        <Text style={styles.fieldLabel}>Status Ketersediaan</Text>
+        <SegmentedButtons
+          value={availabilityStatus}
+          onValueChange={setAvailabilityStatus}
+          buttons={[
+            { value: AVAILABILITY_STATUS.AVAILABLE, label: 'Tersedia' },
+            { value: AVAILABILITY_STATUS.RENTING_PROCESS, label: 'Dalam Proses' },
+            { value: AVAILABILITY_STATUS.UNAVAILABLE, label: 'Tidak Tersedia' },
+          ]}
+          style={styles.segmentedBtn}
         />
 
         {/* Section: Lokasi Aceh Barat */}
